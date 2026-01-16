@@ -36,7 +36,7 @@ This project uses VS Code DevContainer for cross-platform development, ensuring 
 ### Container Specifications
 
 - **Base Image**: Ubuntu 24.04
-- **Python Version**: 3.12 (default for Ubuntu 24.04)
+- **Python Version**: 3.12 (system default for Ubuntu 24.04)
 - **Development Tools**: Git, essential build tools, and Python development dependencies
 
 ## Project Status

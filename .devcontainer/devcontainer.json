@@ -9,13 +9,13 @@
 		"vscode": {
 			"settings": {
 				"python.defaultInterpreterPath": "/usr/bin/python",
-				"python.linting.enabled": true,
-				"python.linting.pylintEnabled": true,
-				"python.formatting.provider": "black",
 				"editor.formatOnSave": true,
 				"editor.rulers": [88, 120],
 				"files.trimTrailingWhitespace": true,
-				"files.insertFinalNewline": true
+				"files.insertFinalNewline": true,
+				"[python]": {
+					"editor.defaultFormatter": "ms-python.black-formatter"
+				}
 			},
 			"extensions": [
 				"ms-python.python",
