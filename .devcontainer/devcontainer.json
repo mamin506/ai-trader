@@ -1,0 +1,48 @@
+{
+	"name": "AI Trader Development",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	
+	// Configure tool-specific properties
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/bin/python",
+				"editor.formatOnSave": true,
+				"editor.rulers": [88, 120],
+				"files.trimTrailingWhitespace": true,
+				"files.insertFinalNewline": true,
+				"[python]": {
+					"editor.defaultFormatter": "ms-python.black-formatter"
+				}
+			},
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-python.black-formatter",
+				"ms-python.pylint",
+				"ms-python.debugpy"
+			]
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally
+	// "forwardPorts": [],
+
+	// Use 'postCreateCommand' to run commands after the container is created
+	"postCreateCommand": "python -m pip install --upgrade pip && python --version",
+
+	// Comment out to connect as root instead
+	"remoteUser": "vscode",
+
+	// Set environment variables
+	"remoteEnv": {
+		"PYTHONUNBUFFERED": "1"
+	},
+
+	// Features to add to the dev container
+	"features": {
+		"ghcr.io/devcontainers/features/git:1": {}
+	}
+}
