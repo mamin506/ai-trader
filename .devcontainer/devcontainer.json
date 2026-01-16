@@ -31,7 +31,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created
-	"postCreateCommand": "pip install --upgrade pip && python --version",
+	"postCreateCommand": "python -m pip install --upgrade pip && python --version",
 
 	// Comment out to connect as root instead
 	"remoteUser": "vscode",
