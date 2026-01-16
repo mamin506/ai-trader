@@ -3,18 +3,20 @@
 	"build": {
 		"dockerfile": "Dockerfile"
 	},
-	
 	// Configure tool-specific properties
 	"customizations": {
 		"vscode": {
 			"settings": {
-				"python.defaultInterpreterPath": "/usr/bin/python",
+				"python.defaultInterpreterPath": "/home/ubuntu/.venv/bin/python",
 				"editor.formatOnSave": true,
-				"editor.rulers": [88, 120],
+				"editor.rulers": [
+					88,
+					120
+				],
 				"files.trimTrailingWhitespace": true,
 				"files.insertFinalNewline": true,
 				"[python]": {
-					"editor.defaultFormatter": "ms-python.black-formatter"
+					"editor.formatOnSave": true
 				}
 			},
 			"extensions": [
@@ -26,21 +28,16 @@
 			]
 		}
 	},
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally
 	// "forwardPorts": [],
-
 	// Use 'postCreateCommand' to run commands after the container is created
-	"postCreateCommand": "python -m pip install --upgrade pip && python --version",
-
-	// Comment out to connect as root instead
-	"remoteUser": "vscode",
-
+	"postCreateCommand": "pip install --upgrade pip && python --version",
+	// Use ubuntu user (comes with ubuntu:24.04 base image)
+	"remoteUser": "ubuntu",
 	// Set environment variables
 	"remoteEnv": {
 		"PYTHONUNBUFFERED": "1"
 	},
-
 	// Features to add to the dev container
 	"features": {
 		"ghcr.io/devcontainers/features/git:1": {}
