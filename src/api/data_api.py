@@ -4,7 +4,7 @@ This module provides a simple, high-level interface for fetching and
 exploring market data. Designed for use in Jupyter notebooks and scripts.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -91,8 +91,6 @@ class DataAPI:
             >>> print("Last week's closing prices:")
             >>> print(recent["close"])
         """
-        from datetime import timedelta
-
         end = datetime.now()
         # Fetch extra days to account for weekends/holidays
         start = end - timedelta(days=days * 2)
