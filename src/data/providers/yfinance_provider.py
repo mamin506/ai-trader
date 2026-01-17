@@ -85,13 +85,22 @@ class YFinanceProvider(DataProvider):
 
         # Select only required columns
         required_columns = ["open", "high", "low", "close", "volume"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            error_msg = (
+                f"Missing required columns for {symbol}: {missing_columns}. "
+                f"Available columns: {list(df.columns)}"
+            )
+            logger.error(error_msg)
+            raise DataQualityError(error_msg)
+
         df = df[required_columns]
 
         # Ensure index is named "date"
         df.index.name = "date"
 
-        # Convert volume to integer
-        df["volume"] = df["volume"].astype(int)
+        # Convert volume to integer (fillna with 0 before conversion)
+        df["volume"] = df["volume"].fillna(0).astype(int)
 
         logger.info(
             f"Successfully fetched {len(df)} bars for {symbol} "
