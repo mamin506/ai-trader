@@ -315,25 +315,144 @@ class Strategy(ABC):
 
 ### Core Principles
 
-1. **Composition Over Inheritance**
+These principles guide every design and implementation decision in the AI Trader project.
+
+#### 1. YAGNI (You Aren't Gonna Need It)
+
+**Definition**: Only implement features that are currently needed, not features you think you might need in the future.
+
+**In Practice**:
+- ❌ Don't build configuration systems with features you don't use yet
+- ❌ Don't create abstractions for "potential future extensibility"
+- ❌ Don't add optional parameters "just in case"
+- ✅ Implement exactly what's needed for the current task
+- ✅ Add features when you actually need them, not before
+- ✅ Each commit should be minimal, complete, and testable
+
+**Example**:
+```python
+# ❌ Over-engineering (YAGNI violation)
+class Config:
+    def __init__(self):
+        self.cache = {}
+        self.observers = []
+        self.validation_rules = []
+
+    def get(self, key, default=None, transform=None, cache=True, notify=True):
+        # Too many features we don't need yet!
+        pass
+
+# ✅ YAGNI-compliant (only what's needed now)
+class Config:
+    def __init__(self, config_dict: dict):
+        self._config = config_dict
+
+    def get(self, key: str, default=None):
+        # Simple, does exactly what we need
+        keys = key.split(".")
+        value = self._config
+        for k in keys:
+            if isinstance(value, dict):
+                value = value.get(k)
+                if value is None:
+                    return default
+        return value
+```
+
+**Benefits**:
+- Less code to maintain
+- Faster development
+- Easier to understand and test
+- Can refactor when requirements become clear
+
+#### 2. KISS (Keep It Simple, Stupid)
+
+**Definition**: Simplicity should be a key goal in design. Avoid unnecessary complexity.
+
+**In Practice**:
+- ❌ Don't use complex design patterns when simple functions suffice
+- ❌ Don't add layers of abstraction without clear benefit
+- ❌ Don't optimize prematurely
+- ✅ Choose the simplest solution that works
+- ✅ Prefer readability over cleverness
+- ✅ Use straightforward control flow
+
+**Example**:
+```python
+# ❌ Over-complicated (KISS violation)
+class LoggerFactory:
+    _instances = {}
+
+    @classmethod
+    def get_logger(cls, name, level=None, handlers=None, filters=None):
+        if name not in cls._instances:
+            logger = logging.getLogger(name)
+            if level:
+                logger.setLevel(level)
+            if handlers:
+                for handler in handlers:
+                    logger.addHandler(handler)
+            # ... more complexity
+            cls._instances[name] = logger
+        return cls._instances[name]
+
+# ✅ KISS-compliant (simple and clear)
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger instance for a module."""
+    return logging.getLogger(name)
+```
+
+**Benefits**:
+- Code is easier to understand
+- Fewer bugs
+- Easier to modify
+- New team members can contribute faster
+
+#### 3. Composition Over Inheritance
+
    - Prefer composing objects with simple building blocks over deep inheritance hierarchies
    - Classes should be small, focused, and easy to understand
    - Use interfaces (Abstract Base Classes) to define contracts, not to share code
 
-2. **Explicit Over Implicit**
+#### 4. Explicit Over Implicit
+
    - Control flow should be clear and visible
    - Avoid "magic" callbacks or hidden framework calls
    - Dependency injection makes dependencies obvious
 
-3. **Pure Functions Where Possible**
+#### 5. Pure Functions Where Possible
+
    - Functions without side effects are easier to test and reason about
    - Prefer module-level functions over class methods when state is not needed
    - Input → Processing → Output (no hidden state)
 
-4. **Dependency Injection**
+#### 6. Dependency Injection
+
    - Pass dependencies explicitly through constructors
    - Makes testing easy (inject mocks)
    - Makes code flexible (swap implementations)
+
+### When to Apply These Principles
+
+**During Design**:
+- Start with the simplest solution (KISS)
+- Only design for current requirements (YAGNI)
+- Ask: "Is this complexity necessary right now?"
+
+**During Implementation**:
+- Write the minimum code to solve the problem (YAGNI)
+- Choose clarity over cleverness (KISS)
+- Each commit should be independently useful (YAGNI)
+
+**During Code Review**:
+- Challenge unnecessary complexity (KISS)
+- Question features not immediately needed (YAGNI)
+- Suggest simpler alternatives when available
+
+**When NOT to Apply**:
+- Security and error handling (always be thorough)
+- Core abstractions (Strategy, DataProvider interfaces)
+- When simplification would sacrifice correctness
 
 ### Why We Avoid Deep Inheritance
 
