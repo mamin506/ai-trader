@@ -20,6 +20,17 @@ ai-trader/
 │   └── development-guidelines.md
 │
 ├── src/                        # Source code
+│   ├── api/                    # User-friendly Python APIs
+│   │   ├── __init__.py
+│   │   ├── data_api.py         # Data access API
+│   │   ├── strategy_api.py     # Strategy testing API
+│   │   └── portfolio_api.py    # Portfolio analysis API
+│   │
+│   ├── visualization/          # Visualization and reporting
+│   │   ├── __init__.py
+│   │   ├── charts.py           # Plotting functions (matplotlib/plotly)
+│   │   └── reports.py          # Report generation
+│   │
 │   ├── data/                   # Data Layer
 │   │   ├── __init__.py
 │   │   ├── providers/          # Data provider implementations
@@ -103,9 +114,16 @@ ai-trader/
 │   └── fixtures/               # Test fixtures and mock data
 │
 ├── notebooks/                  # Jupyter notebooks (analysis, prototyping)
-│   └── .gitkeep
+│   ├── 01_data_exploration.ipynb
+│   ├── 02_strategy_development.ipynb
+│   ├── 03_portfolio_analysis.ipynb
+│   └── 04_backtest_analysis.ipynb
 │
-├── scripts/                    # Utility scripts
+├── scripts/                    # Utility scripts and CLI tools
+│   ├── view_data.py            # Interactive data viewer CLI
+│   ├── test_strategy.py        # Strategy testing CLI
+│   ├── view_portfolio.py       # Portfolio viewer CLI
+│   ├── shell.py                # Interactive Python shell
 │   ├── backtest.py             # Run backtest
 │   ├── paper_trade.py          # Start paper trading
 │   └── data_download.py        # Bulk data download
@@ -1133,8 +1151,23 @@ Keep `agent/*.md` files updated when:
 - Interface contracts are modified
 - Technology choices are revisited
 
+## User Interface and Developer Experience
+
+See [user-interface-design.md](user-interface-design.md) for comprehensive documentation on:
+- **Python API Layer** (`src/api/`) - User-friendly interfaces for each layer
+- **CLI Tools** (`scripts/`) - Command-line utilities for common tasks
+- **Jupyter Integration** - Notebook-first development workflow
+- **Visualization** (`src/visualization/`) - Charts and reports for analysis
+
+**Key principles**:
+- Every layer exposes a clean Python API for interactive use
+- All APIs work seamlessly in Jupyter Notebooks
+- CLI tools provide quick access to common operations
+- Visualization is built-in, not an afterthought
+
 ## Related Documents
 
 - [architecture-overview.md](architecture-overview.md) - System design and data flow
 - [tech-stack.md](tech-stack.md) - Technology decisions
+- [user-interface-design.md](user-interface-design.md) - Python APIs, CLI tools, Jupyter integration
 - [CLAUDE.md](../CLAUDE.md) - Claude Code project instructions

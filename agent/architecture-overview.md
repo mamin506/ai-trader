@@ -66,17 +66,23 @@ sequenceDiagram
     participant DB as SQLite DB
 
     Note over S: Daily 16:30 (Post-Market)
-    S->>D: Trigger data update
+    Note over S: Task Chain: Data → Signal → Portfolio
+
+    S->>D: Trigger data update job
     D->>D: Fetch latest market data
     D->>DB: Store daily prices
+    D-->>S: Data update complete
 
-    S->>ST: Trigger signal generation
+    Note over S: Wait for data job completion
+    S->>ST: Trigger signal generation job
     ST->>DB: Load historical prices
     ST->>ST: Calculate indicators (TA-Lib)
     ST->>ST: Generate signals [-1.0, 1.0]
     ST->>DB: Store signals
+    ST-->>S: Signal generation complete
 
-    S->>P: Check rebalancing schedule
+    Note over S: Wait for signal job completion
+    S->>P: Trigger portfolio rebalancing job
     alt Rebalancing Day
         P->>DB: Load current positions
         P->>DB: Load latest signals
@@ -100,6 +106,12 @@ sequenceDiagram
         end
     end
 ```
+
+**Task Dependency Chain**:
+- APScheduler orchestrates tasks with explicit dependencies
+- Each task waits for previous task completion before execution
+- Prevents race conditions and ensures data consistency
+- Failed tasks halt the chain and trigger alerts
 
 ## Module Dependencies
 
@@ -310,64 +322,49 @@ graph TD
 
 **Mode Switching**: Configuration-driven, no code changes required.
 
-## Phase Implementation Roadmap
+## Implementation Roadmap
+
+The system will be built in three progressive phases, each building on the previous phase's foundation. See [development-plan.md](development-plan.md) for detailed timeline, task breakdown, and progress tracking.
 
 ### Phase 1: Backtesting Foundation (Current Focus)
 
-```mermaid
-gantt
-    title Phase 1 Implementation Timeline
-    dateFormat YYYY-MM-DD
-    section Data Layer
-    YFinance Provider           :done, d1, 2026-01-20, 3d
-    SQLite Storage              :done, d2, 2026-01-20, 2d
-    Data Manager                :active, d3, 2026-01-22, 3d
+**Goal**: Complete backtesting system with historical data
 
-    section Strategy Layer
-    TA-Lib Integration          :s1, 2026-01-23, 2d
-    MA Crossover Strategy       :s2, after s1, 3d
-    Signal Generator            :s3, after s2, 2d
+**Key Deliverables**:
+- Data Layer: YFinance provider, SQLite storage, data quality validation
+- Strategy Layer: TA-Lib integration, MA Crossover strategy, signal generation
+- Portfolio Layer: Heuristic allocation, weekly/monthly rebalancing
+- Risk Layer: Position limits, cash reserve checks, basic stop-loss
+- Execution Layer: Backtest executor, VectorBT integration
+- User Interface: Python APIs, CLI tools, Jupyter notebooks, visualization
 
-    section Portfolio Layer
-    Heuristic Allocator         :p1, 2026-01-28, 4d
-    Rebalancing Logic           :p2, after p1, 3d
+**Success Criteria**: End-to-end backtest runs on 1-year historical data with performance metrics
 
-    section Risk Layer
-    Basic Validation            :r1, 2026-02-01, 3d
-    Position Limits             :r2, after r1, 2d
+### Phase 2: Paper Trading
 
-    section Execution Layer
-    Backtest Executor           :e1, 2026-02-04, 4d
-    VectorBT Integration        :e2, after e1, 3d
+**Goal**: Real-time paper trading with Alpaca API
 
-    section Integration
-    End-to-End Backtest         :i1, 2026-02-08, 5d
-    Performance Metrics         :i2, after i1, 3d
-```
-
-**Phase 1 Deliverables**:
-- Complete backtesting system with historical data
-- Simple MA crossover strategy
-- Heuristic portfolio allocation
-- Basic risk validation
-- Performance reporting
-
-### Phase 2: Paper Trading (Post Phase 1 Validation)
-
-**Focus**:
-- Alpaca Paper Trading API integration
-- Real-time data streaming
-- Dynamic stop-loss/take-profit
+**Key Deliverables**:
+- Real-time data streaming from Alpaca
 - Enhanced portfolio allocation (risk-adjusted)
+- Dynamic stop-loss/take-profit
+- Paper trading execution with order tracking
+- Real-time monitoring and alerts
 
-### Phase 3: Production (Post Paper Trading Validation)
+**Success Criteria**: System runs autonomously in paper trading mode for 2+ weeks without errors
 
-**Focus**:
+### Phase 3: Production
+
+**Goal**: Live trading with advanced features and production-grade infrastructure
+
+**Key Deliverables**:
 - Alpaca Live Trading integration
-- Advanced risk management (VaR, drawdown protection)
+- Advanced risk management (VaR, CVaR, drawdown protection)
 - Portfolio optimization (Black-Litterman, Markowitz)
-- QuantStats reporting
-- Production monitoring and alerts
+- QuantStats comprehensive reporting
+- Production monitoring, alerting, and disaster recovery
+
+**Success Criteria**: System handles live trading with comprehensive risk controls and monitoring
 
 ## Configuration Management
 
@@ -542,9 +539,11 @@ logger.info("signal_generated", extra={
 ## Related Documents
 
 - [tech-stack.md](tech-stack.md) - Technology decisions and rationale
+- [development-plan.md](development-plan.md) - Project timeline, milestones, and progress tracking
 - [data-layer-design.md](data-layer-design.md) - Data acquisition and storage
 - [strategy-layer-design.md](strategy-layer-design.md) - Strategy framework
 - [portfolio-management-design.md](portfolio-management-design.md) - Portfolio allocation
 - [risk-management-design.md](risk-management-design.md) - Risk control
 - [execution-layer-design.md](execution-layer-design.md) - Order execution
-- [development-guidelines.md](development-guidelines.md) - Coding standards (TBD)
+- [user-interface-design.md](user-interface-design.md) - Python APIs, CLI tools, Jupyter integration
+- [development-guidelines.md](development-guidelines.md) - Coding standards
