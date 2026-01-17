@@ -1,0 +1,39 @@
+{
+  // Python Formatter - Black
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // Python Linting - Pylint (Google Style)
+  // Note: Requires ms-python.pylint extension
+  "pylint.enabled": true,
+  "pylint.args": [
+    "--rcfile=${workspaceFolder}/.pylintrc"
+  ],
+
+  // Editor Settings
+  "editor.rulers": [88, 120],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // File Exclusions
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true
+  },
+
+  // Python Testing
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+
+  // Type Checking
+  "python.analysis.typeCheckingMode": "basic"
+}
