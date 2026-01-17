@@ -1,7 +1,7 @@
 """Unit tests for YFinanceProvider."""
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
@@ -40,7 +40,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test successful data fetching."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = sample_yfinance_data
             mock_ticker.return_value = mock_instance
 
@@ -59,7 +59,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that yfinance capitalized columns are lowercased."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = sample_yfinance_data
             mock_ticker.return_value = mock_instance
 
@@ -76,7 +76,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that volume is converted to integer."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = sample_yfinance_data
             mock_ticker.return_value = mock_instance
 
@@ -91,7 +91,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that only OHLCV columns are returned."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = sample_yfinance_data
             mock_ticker.return_value = mock_instance
 
@@ -109,7 +109,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that empty data raises DataQualityError."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = pd.DataFrame()
             mock_ticker.return_value = mock_instance
 
@@ -123,7 +123,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that None data raises DataQualityError."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = None
             mock_ticker.return_value = mock_instance
 
@@ -149,7 +149,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that correct date range is returned."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = sample_yfinance_data
             mock_ticker.return_value = mock_instance
 
@@ -166,7 +166,7 @@ class TestYFinanceProvider:
     ) -> None:
         """Test that data values are correctly preserved after transformation."""
         with patch("yfinance.Ticker") as mock_ticker:
-            mock_instance = MagicMock()
+            mock_instance = Mock()
             mock_instance.history.return_value = sample_yfinance_data
             mock_ticker.return_value = mock_instance
 
