@@ -966,27 +966,51 @@ Document order execution abstraction, paper trading, and Alpaca integration.
 
 ### Branch Strategy
 
-**Main Branches**:
-- `main`: Production-ready code
-- `develop`: Integration branch for features
+**Main Branch**:
+- `main`: Production-ready code (all changes merged via Pull Requests)
 
 **Feature Branches**:
-- `feature/<layer-name>`: e.g., `feature/data-layer`, `feature/strategy-ma-crossover`
-- Branch from `develop`, merge back via PR
+- `feature/<feature-name>`: e.g., `feature/data-layer`, `feature/config-system`
+- Branch from `main`, merge back to `main` via PR
 
-**Workflow**:
+**Workflow** (mandatory for all development):
+
 ```bash
-# Create feature branch
-git checkout develop
-git checkout -b feature/portfolio-allocation
+# 1. Create feature branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/my-feature
 
-# Work on feature
-# ... commits ...
+# 2. Make changes and commit as you work
+# Follow YAGNI principle: each commit should be minimal, complete, and testable
+git add <files>
+git commit -m "feat: implement X"
 
-# Push and create PR
-git push origin feature/portfolio-allocation
-# Create PR: feature/portfolio-allocation -> develop
+# Continue working...
+git add <files>
+git commit -m "test: add tests for X"
+
+# 3. When feature is ready (notify the project lead)
+# Push feature branch to GitHub
+git push origin feature/my-feature
+
+# 4. Create Pull Request on GitHub
+# PR: feature/my-feature -> main
+# Project lead will review and merge
+
+# 5. After PR is merged, delete feature branch
+git checkout main
+git pull origin main
+git branch -d feature/my-feature
 ```
+
+**Important Rules**:
+- ✅ **Always work in feature branches**, never commit directly to `main`
+- ✅ **Each commit must be independent, complete, and testable** (YAGNI principle)
+- ✅ **Push feature branch and create PR** when ready for review
+- ✅ **Wait for code review** before merging to `main`
+- ❌ **Never push directly to main** without a Pull Request
+- ❌ **Never merge your own PR** without approval
 
 ## Development Workflow
 
