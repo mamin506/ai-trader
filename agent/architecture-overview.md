@@ -515,6 +515,17 @@ graph TD
 - **Execution Layer**: Halt trading after 5 consecutive order rejections
 - **Risk Layer**: Emergency liquidation if drawdown > 20%
 
+### System Safety and Fail-Safe Mechanisms
+
+The system employs a "Fail-Safe" philosophy to protect capital during anomalies:
+
+1.  **Fail-Safe Defaults**: If data is missing or invalid, the system defaults to **Hold/Do Nothing**. It never guesses.
+2.  **Harm Minimization**: Prioritize preventing new bad trades over forcing exits on uncertain data.
+3.  **Data Validation (Gatekeeper)**: Strict validation (calendar check, price integrity) blocks invalid data from entering the Strategy Layer.
+4.  **Operational Safety**: Automated alerts and manual kill-switches for critical system failures.
+
+See [system-safety-design.md](system-safety-design.md) for detailed protocols.
+
 ## Monitoring and Observability
 
 ### Key Metrics (Phase 3)
@@ -547,3 +558,4 @@ logger.info("signal_generated", extra={
 - [execution-layer-design.md](execution-layer-design.md) - Order execution
 - [user-interface-design.md](user-interface-design.md) - Python APIs, CLI tools, Jupyter integration
 - [development-guidelines.md](development-guidelines.md) - Coding standards
+- [system-safety-design.md](system-safety-design.md) - System safety and fail-safe protocols
