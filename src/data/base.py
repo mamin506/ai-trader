@@ -63,3 +63,20 @@ class DataProvider(ABC):
             2024-01-02  185.0  186.0  184.0  185.5  50000000
         """
         pass
+
+    @abstractmethod
+    def get_trading_days(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> pd.DatetimeIndex:
+        """Get list of trading days between start and end date (inclusive).
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            DatetimeIndex containing valid trading days.
+        """
+        pass
