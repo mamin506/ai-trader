@@ -221,11 +221,11 @@ gantt
 - [ ] Exception hierarchy defined
 
 **Data Layer**:
-- [ ] Abstract `DataProvider` interface
-- [ ] YFinance provider implementation
-- [ ] SQLite database schema and manager
+- [x] Abstract `DataProvider` interface
+- [x] YFinance provider implementation
+- [x] SQLite database schema and manager
 - [ ] Data quality validation
-- [ ] `DataAPI` for user-friendly access
+- [x] `DataAPI` for user-friendly access
 - [ ] Price chart visualization
 
 **Strategy Layer**:
@@ -295,7 +295,8 @@ Phase 1 is complete when:
 - [x] Implement abstract `DataProvider` interface
 - [x] Implement YFinance provider
 - [x] Create DataAPI user interface
-- [ ] Design SQLite database schema
+- [x] Design SQLite database schema
+- [x] Implement SQLite database manager with UPSERT support
 - [ ] Implement data quality validation
 
 **Completed**:
@@ -351,7 +352,20 @@ Phase 1 is complete when:
 - 6 new modules implemented
 - 70 unit tests (99% coverage)
 - ~1,200 lines of production code
+- ~1,200 lines of production code
 - ~1,500 lines of test code
+
+### 2026-01-18: Data Layer Enhancement (SQLite & Incremental Fetching) ✅
+**Completed**:
+- ✅ `DatabaseManager` implementation (SQLite with `schema.sql`)
+- ✅ Smart incremental data fetching in `DataAPI` (fetches only missing data)
+- ✅ `view_data.py` CLI improvements (fixed display limit bug)
+- ✅ Git workflow improvements (`.gitignore`, feature branching)
+
+**Key Technical Decisions**:
+- Implemented `UPSERT` (ON CONFLICT DO UPDATE) for efficient data merging
+- Normalized timezones to naive UTC-like to prevent pandas merge errors
+- `DataAPI` acts as a smart proxy: checks DB first, then Provider, then merges
 
 ### 2026-01-17: Design Phase Completed ✅
 **Completed**:
