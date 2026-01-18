@@ -56,7 +56,7 @@ class YFinanceProvider(DataProvider):
             >>> provider = YFinanceProvider()
             >>> data = provider.get_historical_bars("AAPL", start, end)
         """
-        logger.info(f"Fetching data for {symbol} from {start_date} to {end_date}")
+        logger.info("Fetching data for %s from %s to %s", symbol, start_date, end_date)
 
         try:
             ticker = yf.Ticker(symbol)
@@ -103,8 +103,11 @@ class YFinanceProvider(DataProvider):
         df["volume"] = df["volume"].fillna(0).astype(int)
 
         logger.info(
-            f"Successfully fetched {len(df)} bars for {symbol} "
-            f"from {df.index[0]} to {df.index[-1]}"
+            "Successfully fetched %d bars for %s from %s to %s",
+            len(df),
+            symbol,
+            df.index[0],
+            df.index[-1],
         )
 
         return df

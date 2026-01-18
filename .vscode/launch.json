@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "inputs": [
+        {
+            "id": "view_data_args",
+            "type": "promptString",
+            "description": "Enter command arguments (e.g. 'prices AAPL --days 10')",
+            "default": "prices AAPL --days 10"
+        }
+    ],
+    "configurations": [
+        {
+            "name": "Debug view_data (Prompt)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/view_data.py",
+            "console": "integratedTerminal",
+            "args": "${input:view_data_args}"
+        }
+    ]
+}

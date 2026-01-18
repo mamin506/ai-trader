@@ -108,3 +108,15 @@ class Config:
             Complete configuration dictionary
         """
         return self._config.copy()
+
+
+def load_config(filepath: str | Path = "config/default.yaml") -> Config:
+    """Helper function to load configuration.
+
+    Args:
+        filepath: Path to YAML configuration file
+
+    Returns:
+        Config instance
+    """
+    return Config.from_file(filepath)
