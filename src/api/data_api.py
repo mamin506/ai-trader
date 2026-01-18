@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from src.data.providers.yfinance_provider import YFinanceProvider
+from src.data.base import DataProvider
 from src.data.storage.database import DatabaseManager
 from src.utils.logging import get_logger
 from src.utils.config import load_config
@@ -48,6 +49,35 @@ class DataAPI:
         self.storage = DatabaseManager(db_path)
 
         logger.debug("DataAPI initialized with YFinanceProvider and DB at %s", db_path)
+    def __init__(self, provider: DataProvider = None, db_path: str = None):
+        """Initialize DataAPI.
+
+        Args:
+            provider: DataProvider instance (defaults to YFinanceProvider)
+            db_path: Path to SQLite database (defaults to config)
+        """
+        self.provider = provider or YFinanceProvider()
+
+        if db_path is None:
+            # Use absolute path to project root relative to this file
+            root_dir = Path(__file__).parent.parent.parent
+            base_dir = root_dir / "data"
+            base_dir.mkdir(exist_ok=True)
+            db_path = str(base_dir / "market_data.db")
+
+        self.db = DatabaseManager(db_path)
+
+        # Load config for update_data method, as it's no longer passed directly
+        # This assumes a default config path if not explicitly managed
+        self.config = load_config("config/default.yaml")
+
+        logger.debug("DataAPI initialized with %s and DB at %s", type(self.provider).__name__, db_path)
+
+    def _parse_date(self, date_input: str | datetime) -> datetime:
+        """Helper to parse date strings or return datetime objects."""
+        if isinstance(date_input, str):
+            return datetime.fromisoformat(date_input)
+        return date_input
 
     def get_daily_bars(
         self,
@@ -55,88 +85,98 @@ class DataAPI:
         start: str | datetime,
         end: str | datetime,
     ) -> pd.DataFrame:
-        """Fetch daily OHLCV bars for a symbol.
+        """Get daily OHLCV bars for a symbol.
 
-        Convenience method that accepts both string dates and datetime objects.
+        This method:
+        1. Checks local database for existing data
+        2. SMART INCREMENTAL FETCH: Fetches only MISSING chunks from provider
+        3. Validates data quality (schema, integrity, continuity)
+        4. Updates database with new valid data
+        5. Returns combined dataframe
 
         Args:
-            symbol: Stock ticker symbol (e.g., "AAPL", "TSLA")
-            start: Start date as string "YYYY-MM-DD" or datetime object
-            end: End date as string "YYYY-MM-DD" or datetime object
+            symbol: Ticker symbol
+            start: Start date
+            end: End date
 
         Returns:
-            DataFrame with columns: open, high, low, close, volume
-            Index: DatetimeIndex with name "date"
+            DataFrame with columns: open, high, low, close, volume (index: date)
 
-        Example:
-            >>> api = DataAPI()
-            >>> data = api.get_daily_bars("AAPL", "2024-01-01", "2024-01-31")
-            >>> print(f"Fetched {len(data)} days of data")
+        Raises:
+            DataQualityError: If data validation fails critically
         """
-        # Convert string dates to datetime if needed
-        if isinstance(start, str):
-            start = datetime.fromisoformat(start)
-        if isinstance(end, str):
-            end = datetime.fromisoformat(end)
+        start_dt = self._parse_date(start)
+        end_dt = self._parse_date(end)
 
-        logger.info("Fetching daily bars for %s from %s to %s", symbol, start, end)
+        logger.info(f"Requesting {symbol} from {start_dt.date()} to {end_dt.date()}")
 
-        start_requested = start
-        end_requested = end
+        # 1. Load existing data from DB
+        cached_df = self.db.load_bars(symbol, start_dt, end_dt)
 
-        # 1. Try to load from database first
-        cached_data = pd.DataFrame()
-        try:
-            cached_data = self.storage.load_bars(symbol, start_requested, end_requested)
-        except Exception as e:
-            logger.warning("Failed to load from cache: %s", e)
-
-        # Helper to fetch and save data
+        # Helper to fetch and save a range
         def fetch_and_save(s, e):
             chunk = self.provider.get_historical_bars(symbol, s, e)
             if not chunk.empty:
-                # Ensure index is timezone-naive to match database cache
+                # Validate integrity BEFORE saving to prevent DB pollution
+                DataValidator.validate_integrity(chunk, symbol)
+                DataValidator.validate_schema(chunk, symbol)
+
+                # Normalize timezones to naive UTC-like to avoid mismatch with DB
                 if chunk.index.tz is not None:
                     chunk.index = chunk.index.tz_localize(None)
 
-                try:
-                    self.storage.save_bars(chunk, symbol)
-                except Exception as ex:
-                    logger.error("Failed to save to cache: %s", ex)
+                self.db.save_bars(chunk, symbol)
             return chunk
 
-        chunks = []
-        if not cached_data.empty:
-            chunks.append(cached_data)
-
-            # Check for missing data before the cache
-            cached_min_date = cached_data.index.min()
-            if start_requested < cached_min_date:
-                pre_end = cached_min_date - timedelta(days=1)
-                if pre_end >= start_requested:
-                    logger.info("Fetching missing pre-cache data for %s from %s to %s", symbol, start_requested, pre_end)
-                    chunks.append(fetch_and_save(start_requested, pre_end))
-
-            # Check for missing data after the cache
-            cached_max_date = cached_data.index.max()
-            if end_requested > cached_max_date:
-                post_start = cached_max_date + timedelta(days=1)
-                if post_start <= end_requested:
-                    logger.info("Fetching missing post-cache data for %s from %s to %s", symbol, post_start, end_requested)
-                    chunks.append(fetch_and_save(post_start, end_requested))
+        # 2. Smart Fetching Logic
+        if cached_df.empty:
+            # Case A: No cache, fetch everything
+            logger.info("No cache found. Fetching full range.")
+            fetch_and_save(start_dt, end_dt)
         else:
-            # No cache, fetch everything
-            logger.info("No cached data found, fetching full range for %s", symbol)
-            chunks.append(fetch_and_save(start_requested, end_requested))
+            # Case B: Partial cache, fetch missing pieces
+            cached_min = cached_df.index.min()
+            cached_max = cached_df.index.max()
 
-        # Merge all chunks
-        if not chunks:
-            return pd.DataFrame()
+            # Fetch Pre-Cache Hole
+            if start_dt < cached_min:
+                pre_end = cached_min - timedelta(days=1)
+                if start_dt <= pre_end:
+                    logger.info(f"Fetching pre-cache gap: {start_dt.date()} to {pre_end.date()}")
+                    fetch_and_save(start_dt, pre_end)
 
-        final_df = pd.concat(chunks)
-        # Remove duplicates (keep last) and sort
-        final_df = final_df[~final_df.index.duplicated(keep='last')].sort_index()
+            # Fetch Post-Cache Hole
+            if end_dt > cached_max:
+                post_start = cached_max + timedelta(days=1)
+                if post_start <= end_dt:
+                    logger.info(f"Fetching post-cache gap: {post_start.date()} to {end_dt.date()}")
+                    fetch_and_save(post_start, end_dt)
 
+        # 3. Reload Full Range
+        final_df = self.db.load_bars(symbol, start_dt, end_dt)
+
+        if final_df.empty:
+            logger.warning(f"No data available for {symbol}")
+            return final_df
+
+        # Remove duplicates logic (keep last)
+        final_df = final_df[~final_df.index.duplicated(keep='last')]
+        final_df = final_df.sort_index()
+
+        # 4. Final Validation (Continuity Check)
+        try:
+            expected_days = self.provider.get_trading_days(start_dt, end_dt)
+            DataValidator.validate_continuity(final_df, expected_days, symbol)
+
+            # Also run anomaly detection on final set
+            DataValidator.detect_anomalies(final_df, symbol)
+
+        except DataQualityError as e:
+            logger.error(f"Data validation failed for {symbol}: {e}")
+            # Decision: Raise error to stop strategy execution on bad data (Fail-Safe)
+            raise
+
+        logger.info(f"returned {len(final_df)} bars (validated)")
         return final_df
 
     def get_latest(self, symbol: str, days: int = 30) -> pd.DataFrame:

@@ -111,3 +111,37 @@ class YFinanceProvider(DataProvider):
         )
 
         return df
+
+    def get_trading_days(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> pd.DatetimeIndex:
+        """Get trading days for NYSE from exchange_calendars.
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            DatetimeIndex containing valid trading days.
+        """
+        try:
+            import exchange_calendars as xcals
+
+            # Use XNYS (New York Stock Exchange) as the standard
+            nyse = xcals.get_calendar("XNYS")
+            schedule = nyse.schedule(start_date=start_date, end_date=end_date)
+
+            # Return the index (dates) normalized to midnight
+            return pd.DatetimeIndex(schedule.index).normalize()
+
+        except ImportError as e:
+            logger.error("exchange_calendars not installed")
+            raise DataProviderError(
+                "exchange_calendars is required for validation. Please install it."
+            ) from e
+        except Exception as e:
+            error_msg = f"Failed to get trading days: {e}"
+            logger.error(error_msg)
+            raise DataProviderError(error_msg) from e

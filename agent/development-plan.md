@@ -297,7 +297,7 @@ Phase 1 is complete when:
 - [x] Create DataAPI user interface
 - [x] Design SQLite database schema
 - [x] Implement SQLite database manager with UPSERT support
-- [ ] Implement data quality validation
+- [x] Implement data quality validation
 
 **Completed**:
 - ✅ All infrastructure components (2026-01-17)
@@ -366,6 +366,16 @@ Phase 1 is complete when:
 - Implemented `UPSERT` (ON CONFLICT DO UPDATE) for efficient data merging
 - Normalized timezones to naive UTC-like to prevent pandas merge errors
 - `DataAPI` acts as a smart proxy: checks DB first, then Provider, then merges
+
+### 2026-01-18: Data Validation Implemented ✅
+**Completed**:
+- ✅ Implemented `DataValidator` with checks for:
+    - Schema (missing columns)
+    - Integrity (negative prices, high/low logic)
+    - Continuity (missing trading days using `exchange_calendars`)
+    - Anomalies (price spikes > 20%)
+- ✅ Integrated validation into `DataAPI` as a gatekeeper (Fail-Safe)
+- ✅ Added `exchange_calendars` dependency
 
 ### 2026-01-17: Design Phase Completed ✅
 **Completed**:
