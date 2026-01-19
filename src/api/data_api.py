@@ -69,6 +69,72 @@ class DataAPI:
             return datetime.fromisoformat(date_input)
         return date_input
 
+    def _fetch_and_save(self, symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+        """Fetch data from provider and save to database.
+
+        Args:
+            symbol: Ticker symbol
+            start_dt: Start date
+            end_dt: End date
+
+        Returns:
+            Fetched DataFrame (may be empty)
+        """
+        chunk = self.provider.get_historical_bars(symbol, start_dt, end_dt)
+        if not chunk.empty:
+            # Normalize timezones to naive UTC-like to avoid mismatch with DB
+            if chunk.index.tz is not None:
+                chunk.index = chunk.index.tz_localize(None)
+            self.db.save_bars(chunk, symbol)
+        return chunk
+
+    def _fetch_gap_with_trading_calendar(
+        self, symbol: str, gap_start: datetime, gap_end: datetime, gap_name: str
+    ) -> None:
+        """Fetch a date gap using trading calendar to optimize query.
+
+        Args:
+            symbol: Ticker symbol
+            gap_start: Gap start date
+            gap_end: Gap end date
+            gap_name: Description (e.g., "pre-cache" or "post-cache")
+        """
+        try:
+            trading_days = self.provider.get_trading_days(gap_start, gap_end)
+
+            if len(trading_days) == 0:
+                logger.debug(
+                    "No trading days in %s gap %s to %s, skipping fetch",
+                    gap_name,
+                    gap_start.date(),
+                    gap_end.date(),
+                )
+                return
+
+            # Fetch from first to last trading day in the gap
+            actual_start = trading_days[0]
+            actual_end = trading_days[-1]
+
+            # yfinance is unreliable for single-day queries
+            # Extend range by a few days if only one trading day
+            if len(trading_days) == 1:
+                actual_end = actual_end + timedelta(days=5)
+                logger.debug("Single trading day detected, extending range to: %s", actual_end.date())
+
+            logger.info(
+                "Fetching %s gap: %s to %s (%d trading days)",
+                gap_name,
+                actual_start.date(),
+                actual_end.date(),
+                len(trading_days),
+            )
+            self._fetch_and_save(symbol, actual_start, actual_end)
+
+        except Exception as e:
+            # Fallback to original logic if trading calendar fails
+            logger.warning("Trading calendar lookup failed, using date-based fetch: %s", str(e))
+            self._fetch_and_save(symbol, gap_start, gap_end)
+
     def get_daily_bars(
         self,
         symbol: str,
@@ -99,22 +165,11 @@ class DataAPI:
         # 1. Load existing data from DB
         cached_df = self.db.load_bars(symbol, start_dt, end_dt)
 
-        # Helper to fetch and save a range
-        def fetch_and_save(s, e):
-            chunk = self.provider.get_historical_bars(symbol, s, e)
-            if not chunk.empty:
-                # Normalize timezones to naive UTC-like to avoid mismatch with DB
-                if chunk.index.tz is not None:
-                    chunk.index = chunk.index.tz_localize(None)
-
-                self.db.save_bars(chunk, symbol)
-            return chunk
-
         # 2. Smart Fetching Logic
         if cached_df.empty:
             # Case A: No cache, fetch everything
             logger.info("No cache found. Fetching full range.")
-            fetch_and_save(start_dt, end_dt)
+            self._fetch_and_save(symbol, start_dt, end_dt)
         else:
             # Case B: Partial cache, fetch missing pieces
             cached_min = cached_df.index.min()
@@ -124,90 +179,13 @@ class DataAPI:
             if start_dt < cached_min:
                 pre_end = cached_min - timedelta(days=1)
                 if start_dt <= pre_end:
-                    # Use trading calendar to determine actual trading days in the gap
-                    try:
-                        trading_days = self.provider.get_trading_days(start_dt, pre_end)
-
-                        if len(trading_days) > 0:
-                            # Fetch from first to last trading day in the gap
-                            actual_start = trading_days[0]
-                            actual_end = trading_days[-1]
-
-                            # yfinance is unreliable for single-day queries
-                            # Extend range by a few days if only one trading day
-                            if len(trading_days) == 1:
-                                # Extend by 5 days to ensure we get data
-                                actual_end = actual_end + timedelta(days=5)
-                                logger.debug(
-                                    "Single trading day detected, extending range to: %s",
-                                    actual_end.date(),
-                                )
-
-                            logger.info(
-                                "Fetching pre-cache gap: %s to %s (%d trading days)",
-                                actual_start.date(),
-                                actual_end.date(),
-                                len(trading_days),
-                            )
-                            fetch_and_save(actual_start, actual_end)
-                        else:
-                            logger.debug(
-                                "No trading days in pre-cache gap %s to %s, skipping fetch",
-                                start_dt.date(),
-                                pre_end.date(),
-                            )
-                    except Exception as e:
-                        # Fallback to original logic if trading calendar fails
-                        logger.warning(
-                            "Trading calendar lookup failed, using date-based fetch: %s",
-                            str(e),
-                        )
-                        fetch_and_save(start_dt, pre_end)
+                    self._fetch_gap_with_trading_calendar(symbol, start_dt, pre_end, "pre-cache")
 
             # Fetch Post-Cache Hole
             if end_dt > cached_max:
                 post_start = cached_max + timedelta(days=1)
                 if post_start <= end_dt:
-                    # Use trading calendar to determine actual trading days in the gap
-                    # This avoids querying single non-trading days (weekends/holidays)
-                    try:
-                        trading_days = self.provider.get_trading_days(post_start, end_dt)
-
-                        if len(trading_days) > 0:
-                            # Fetch from first to last trading day in the gap
-                            actual_start = trading_days[0]
-                            actual_end = trading_days[-1]
-
-                            # yfinance is unreliable for single-day queries
-                            # Extend range by a few days if only one trading day
-                            if len(trading_days) == 1:
-                                # Extend by 5 days to ensure we get data
-                                actual_end = actual_end + timedelta(days=5)
-                                logger.debug(
-                                    "Single trading day detected, extending range to: %s",
-                                    actual_end.date(),
-                                )
-
-                            logger.info(
-                                "Fetching post-cache gap: %s to %s (%d trading days)",
-                                actual_start.date(),
-                                actual_end.date(),
-                                len(trading_days),
-                            )
-                            fetch_and_save(actual_start, actual_end)
-                        else:
-                            logger.debug(
-                                "No trading days in post-cache gap %s to %s, skipping fetch",
-                                post_start.date(),
-                                end_dt.date(),
-                            )
-                    except Exception as e:
-                        # Fallback to original logic if trading calendar fails
-                        logger.warning(
-                            "Trading calendar lookup failed, using date-based fetch: %s",
-                            str(e),
-                        )
-                        fetch_and_save(post_start, end_dt)
+                    self._fetch_gap_with_trading_calendar(symbol, post_start, end_dt, "post-cache")
 
         # 3. Reload Full Range from DB
         final_df = self.db.load_bars(symbol, start_dt, end_dt)
