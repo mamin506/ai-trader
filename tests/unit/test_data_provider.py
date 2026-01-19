@@ -42,6 +42,14 @@ class ConcreteDataProvider(DataProvider):
             index=pd.DatetimeIndex(dates, name="date"),
         )
 
+    def get_trading_days(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> pd.DatetimeIndex:
+        """Return all days in range for testing (simplified)."""
+        return pd.date_range(start=start_date, end=end_date, freq="D")
+
 
 class TestDataProviderInterface:
     """Test cases for DataProvider abstract interface."""
