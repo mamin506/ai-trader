@@ -4,6 +4,9 @@ yfinance>=0.2.0
 # Data manipulation
 pandas>=2.0.0
 
+# Technical indicators
+TA-Lib>=0.6.0
+
 # Configuration
 pyyaml>=6.0
 
