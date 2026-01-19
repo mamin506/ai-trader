@@ -131,10 +131,15 @@ class YFinanceProvider(DataProvider):
 
             # Use XNYS (New York Stock Exchange) as the standard
             nyse = xcals.get_calendar("XNYS")
-            schedule = nyse.schedule(start_date=start_date, end_date=end_date)
 
-            # Return the index (dates) normalized to midnight
-            return pd.DatetimeIndex(schedule.index).normalize()
+            # Get trading sessions for the date range
+            sessions = nyse.sessions_in_range(
+                start=pd.Timestamp(start_date),
+                end=pd.Timestamp(end_date)
+            )
+
+            # Return as DatetimeIndex normalized to midnight (naive datetime)
+            return pd.DatetimeIndex([d.to_pydatetime().replace(tzinfo=None) for d in sessions])
 
         except ImportError as e:
             logger.error("exchange_calendars not installed")

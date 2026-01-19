@@ -221,3 +221,83 @@ class TestDataAPI:
 
             captured = capsys.readouterr()
             assert "Error fetching info" in captured.out
+
+    def test_get_daily_bars_with_non_trading_day_end(
+        self, api: DataAPI, sample_data: pd.DataFrame
+    ) -> None:
+        """Test incremental fetch when end date is a non-trading day.
+
+        This tests the bug fix where querying data with a non-trading day
+        as the end date (e.g., weekend or holiday) would cause single-day
+        queries to fail.
+        """
+        # First, populate cache with some data (Mon-Fri)
+        weekday_data = sample_data.copy()
+        weekday_data.index = pd.DatetimeIndex(
+            pd.date_range("2024-01-01", periods=5, freq="D"), name="date"
+        )
+
+        with patch.object(api.provider, "get_historical_bars") as mock_fetch:
+            with patch.object(api.provider, "get_trading_days") as mock_trading_days:
+                # Initial fetch - returns weekday data
+                mock_fetch.return_value = weekday_data
+                mock_trading_days.return_value = weekday_data.index
+
+                # Populate cache with Jan 1-5
+                api.get_daily_bars("AAPL", "2024-01-01", "2024-01-05")
+
+                # Now query with a weekend end date (Jan 6 is Saturday)
+                # The post-cache gap would be Jan 6, which is not a trading day
+                # The fix should detect this using trading calendar
+                mock_trading_days.return_value = pd.DatetimeIndex([])  # No trading days in gap
+
+                # This should NOT call fetch_and_save for the gap
+                # because there are no trading days
+                initial_call_count = mock_fetch.call_count
+
+                result = api.get_daily_bars("AAPL", "2024-01-01", "2024-01-06")
+
+                # Should return cached data without additional fetch
+                assert len(result) == 5
+                # Call count should not increase (no fetch for non-trading day)
+                assert mock_fetch.call_count == initial_call_count
+
+    def test_get_daily_bars_with_trading_days_in_gap(
+        self, api: DataAPI, sample_data: pd.DataFrame
+    ) -> None:
+        """Test incremental fetch correctly uses trading calendar for gaps."""
+        # Create initial cached data (Jan 1-5)
+        cached_data = sample_data.copy()
+        cached_data.index = pd.DatetimeIndex(
+            pd.date_range("2024-01-01", periods=5, freq="D"), name="date"
+        )
+
+        # Create gap data (Jan 8-10, skipping weekend Jan 6-7)
+        gap_data = sample_data.head(3).copy()
+        gap_data.index = pd.DatetimeIndex(
+            [datetime(2024, 1, 8), datetime(2024, 1, 9), datetime(2024, 1, 10)],
+            name="date",
+        )
+
+        with patch.object(api.provider, "get_historical_bars") as mock_fetch:
+            with patch.object(api.provider, "get_trading_days") as mock_trading_days:
+                # Initial fetch - cache Jan 1-5
+                mock_fetch.return_value = cached_data
+                mock_trading_days.return_value = cached_data.index
+
+                api.get_daily_bars("AAPL", "2024-01-01", "2024-01-05")
+
+                # Now query Jan 1-10 (includes weekend gap)
+                # Trading calendar should return only trading days in gap (Jan 8-10)
+                mock_trading_days.return_value = gap_data.index
+                mock_fetch.return_value = gap_data
+
+                result = api.get_daily_bars("AAPL", "2024-01-01", "2024-01-10")
+
+                # Should have called trading_days for the post-cache gap
+                assert mock_trading_days.called
+                # Should have fetched using the actual trading days (Jan 8-10)
+                # not the full date range (Jan 6-10)
+                last_call = mock_fetch.call_args_list[-1]
+                assert last_call[0][1] == datetime(2024, 1, 8)  # start
+                assert last_call[0][2] == datetime(2024, 1, 10)  # end
