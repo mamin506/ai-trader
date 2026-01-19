@@ -5,6 +5,7 @@ exploring market data. Designed for use in Jupyter notebooks and scripts.
 """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 
@@ -38,17 +39,6 @@ class DataAPI:
         ... )
     """
 
-    def __init__(self, config_path: str = "config/default.yaml"):
-        """Initialize DataAPI with default YFinance provider and database storage."""
-        self.config = load_config(config_path) if config_path else {}
-        # Default to YFinance for now, can be made configurable later
-        self.provider = YFinanceProvider()
-
-        # Initialize storage
-        db_path = self.config.get("data", {}).get("db_path", "data/market_data.db")
-        self.storage = DatabaseManager(db_path)
-
-        logger.debug("DataAPI initialized with YFinanceProvider and DB at %s", db_path)
     def __init__(self, provider: DataProvider = None, db_path: str = None):
         """Initialize DataAPI.
 
@@ -85,14 +75,13 @@ class DataAPI:
         start: str | datetime,
         end: str | datetime,
     ) -> pd.DataFrame:
-        """Get daily OHLCV bars for a symbol.
+        """Get daily OHLCV bars for a symbol with smart caching.
 
-        This method:
+        This method implements incremental fetching:
         1. Checks local database for existing data
-        2. SMART INCREMENTAL FETCH: Fetches only MISSING chunks from provider
-        3. Validates data quality (schema, integrity, continuity)
-        4. Updates database with new valid data
-        5. Returns combined dataframe
+        2. Fetches only MISSING chunks from provider
+        3. Updates database with new data
+        4. Returns combined dataframe
 
         Args:
             symbol: Ticker symbol
@@ -101,14 +90,11 @@ class DataAPI:
 
         Returns:
             DataFrame with columns: open, high, low, close, volume (index: date)
-
-        Raises:
-            DataQualityError: If data validation fails critically
         """
         start_dt = self._parse_date(start)
         end_dt = self._parse_date(end)
 
-        logger.info(f"Requesting {symbol} from {start_dt.date()} to {end_dt.date()}")
+        logger.info("Requesting %s from %s to %s", symbol, start_dt.date(), end_dt.date())
 
         # 1. Load existing data from DB
         cached_df = self.db.load_bars(symbol, start_dt, end_dt)
@@ -117,10 +103,6 @@ class DataAPI:
         def fetch_and_save(s, e):
             chunk = self.provider.get_historical_bars(symbol, s, e)
             if not chunk.empty:
-                # Validate integrity BEFORE saving to prevent DB pollution
-                DataValidator.validate_integrity(chunk, symbol)
-                DataValidator.validate_schema(chunk, symbol)
-
                 # Normalize timezones to naive UTC-like to avoid mismatch with DB
                 if chunk.index.tz is not None:
                     chunk.index = chunk.index.tz_localize(None)
@@ -142,41 +124,28 @@ class DataAPI:
             if start_dt < cached_min:
                 pre_end = cached_min - timedelta(days=1)
                 if start_dt <= pre_end:
-                    logger.info(f"Fetching pre-cache gap: {start_dt.date()} to {pre_end.date()}")
+                    logger.info("Fetching pre-cache gap: %s to %s", start_dt.date(), pre_end.date())
                     fetch_and_save(start_dt, pre_end)
 
             # Fetch Post-Cache Hole
             if end_dt > cached_max:
                 post_start = cached_max + timedelta(days=1)
                 if post_start <= end_dt:
-                    logger.info(f"Fetching post-cache gap: {post_start.date()} to {end_dt.date()}")
+                    logger.info("Fetching post-cache gap: %s to %s", post_start.date(), end_dt.date())
                     fetch_and_save(post_start, end_dt)
 
-        # 3. Reload Full Range
+        # 3. Reload Full Range from DB
         final_df = self.db.load_bars(symbol, start_dt, end_dt)
 
         if final_df.empty:
-            logger.warning(f"No data available for {symbol}")
+            logger.warning("No data available for %s", symbol)
             return final_df
 
-        # Remove duplicates logic (keep last)
+        # Remove duplicates (keep last) and sort
         final_df = final_df[~final_df.index.duplicated(keep='last')]
         final_df = final_df.sort_index()
 
-        # 4. Final Validation (Continuity Check)
-        try:
-            expected_days = self.provider.get_trading_days(start_dt, end_dt)
-            DataValidator.validate_continuity(final_df, expected_days, symbol)
-
-            # Also run anomaly detection on final set
-            DataValidator.detect_anomalies(final_df, symbol)
-
-        except DataQualityError as e:
-            logger.error(f"Data validation failed for {symbol}: {e}")
-            # Decision: Raise error to stop strategy execution on bad data (Fail-Safe)
-            raise
-
-        logger.info(f"returned {len(final_df)} bars (validated)")
+        logger.info("Returned %d bars for %s", len(final_df), symbol)
         return final_df
 
     def get_latest(self, symbol: str, days: int = 30) -> pd.DataFrame:
@@ -272,7 +241,7 @@ class DataAPI:
         # Check latest date in DB for each symbol to optimize start date
         for symbol in symbols:
             try:
-                latest_date = self.storage.get_latest_date(symbol)
+                latest_date = self.db.get_latest_date(symbol)
                 if latest_date:
                     sym_start = latest_date + timedelta(days=1)
                     if sym_start < end:
