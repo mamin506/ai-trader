@@ -152,7 +152,7 @@ This project uses a **hybrid approach** that combines the strengths of Markdown 
 
 ### Phase 1: Backtesting Foundation
 **Timeline**: 2026-01-20 to 2026-02-15 (planned, ~4 weeks)
-**Status**: 🟡 In Progress (0% complete)
+**Status**: 🟡 In Progress (~40% complete)
 **Goal**: Complete backtesting system with historical data
 
 ### Phase 2: Paper Trading
@@ -231,12 +231,12 @@ gantt
 - [ ] Price chart visualization (low priority)
 
 **Strategy Layer**:
-- [ ] Abstract `Strategy` interface
-- [ ] TA-Lib wrapper for indicators
-- [ ] MA Crossover strategy implementation
-- [ ] Signal generation and storage
-- [ ] `StrategyAPI` for testing
-- [ ] Signal visualization
+- [x] Abstract `Strategy` interface
+- [x] TA-Lib wrapper for indicators
+- [x] MA Crossover strategy implementation
+- [x] Signal generation and storage
+- [x] `StrategyAPI` for testing
+- [ ] Signal visualization (low priority, deferred)
 
 **Portfolio Management Layer**:
 - [ ] Abstract `PortfolioManager` interface
@@ -285,9 +285,9 @@ Phase 1 is complete when:
 
 ## Current Sprint
 
-### Sprint: Week of 2026-01-20 (Infrastructure & Data Layer)
+### Sprint: Week of 2026-01-20 (Strategy Layer)
 
-**Sprint Goal**: Complete project infrastructure and begin Data Layer implementation
+**Sprint Goal**: Complete Strategy Layer implementation with StrategyAPI
 
 **Sprint Tasks**:
 - [x] Create project directory structure (src/, tests/, config/, data/, scripts/, notebooks/)
@@ -302,14 +302,22 @@ Phase 1 is complete when:
 - [x] Implement smart incremental data fetching in DataAPI
 - [x] Create comprehensive unit tests for DatabaseManager
 - [x] Refactor DataAPI tests to support caching behavior
+- [x] Implement abstract `Strategy` base class
+- [x] Create TA-Lib indicator wrapper utilities
+- [x] Implement MA Crossover strategy
+- [x] Create StrategyAPI for testing strategies
+- [x] Create comprehensive unit tests for Strategy layer (92 tests)
 - [ ] Implement data quality validation (deferred to Phase 2)
+- [ ] Implement signal visualization (deferred)
 
 **Completed**:
 - ✅ All infrastructure components (2026-01-17)
 - ✅ DataProvider interface and YFinance implementation (2026-01-17)
 - ✅ DataAPI for user-friendly data access (2026-01-17)
 - ✅ DatabaseManager with incremental fetching (2026-01-19)
-- ✅ Comprehensive test suite (78 tests, 66% coverage) (2026-01-19)
+- ✅ Strategy Layer foundation (base, indicators, MA Crossover) (2026-01-19)
+- ✅ StrategyAPI implementation (2026-01-19)
+- ✅ Comprehensive test suite (152 tests, 77% coverage) (2026-01-19)
 
 **In Progress**:
 - None
@@ -322,7 +330,9 @@ Phase 1 is complete when:
 - Infrastructure completed on 2026-01-17 (3 PRs merged)
 - Data layer foundation completed on 2026-01-17 (YFinance + API)
 - Database layer and incremental fetching completed on 2026-01-19
+- Strategy Layer completed on 2026-01-19 (PR #17, PR #18)
 - Validation layer deferred to Phase 2 (YAGNI principle)
+- Signal visualization deferred (low priority)
 
 ---
 
@@ -421,6 +431,77 @@ Phase 1 is complete when:
 - Fixed `self.storage` vs `self.db` inconsistency
 - Added `get_trading_days()` to `ConcreteDataProvider` test fixture
 - Installed `exchange_calendars` package
+
+### 2026-01-19: Strategy Layer Implementation Completed ✅
+
+**Completed**:
+- ✅ Abstract `Strategy` base class with data validation
+- ✅ TA-Lib wrapper utilities for technical indicators (9 indicators)
+- ✅ MA Crossover strategy implementation (golden cross/death cross detection)
+- ✅ `StrategyAPI` user-friendly interface for testing strategies
+- ✅ Comprehensive unit tests (152 tests total, 77% overall coverage)
+
+**Strategy Layer Components**:
+- **Base Strategy** (`src/strategy/base.py`):
+  - Abstract interface for all trading strategies
+  - Data validation (OHLCV columns, datetime index, min rows, no NaN values)
+  - Methods: `validate_params()`, `calculate_indicators()`, `generate_signals()`, `validate_data()`
+
+- **TA-Lib Indicators** (`src/strategy/indicators.py`):
+  - 9 technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands, ATR, Stochastic, ADX, OBV, ROC
+  - All indicators preserve index and handle NaN values correctly
+  - Consistent naming convention (e.g., `sma_20`, `ema_12`, `rsi_14`)
+
+- **MA Crossover Strategy** (`src/strategy/ma_crossover.py`):
+  - Implements classic moving average crossover strategy
+  - Golden cross (fast MA > slow MA) generates buy signal (+1.0)
+  - Death cross (fast MA < slow MA) generates sell signal (-1.0)
+  - Prevents duplicate consecutive signals
+
+- **StrategyAPI** (`src/api/strategy_api.py`):
+  - Three main methods:
+    - `get_signals()`: Generate trading signals for a symbol
+    - `backtest()`: Simple backtest with buy-and-hold comparison
+    - `get_strategy_data()`: Get OHLCV data with calculated indicators
+  - Integrates DataAPI with Strategy layer seamlessly
+  - Simple backtest assumes perfect execution, no transaction costs (YAGNI principle)
+
+**Test Coverage**:
+- **Strategy Base**: 21 tests (validates abstract interface, data validation)
+- **Indicators**: 33 tests (validates all 9 indicators)
+- **MA Crossover**: 21 tests (validates signal logic, crossover detection)
+- **StrategyAPI**: 17 tests (validates integration, backtesting)
+- Total: 92 strategy layer tests with 94% coverage for StrategyAPI
+
+**Pull Requests**:
+- PR #17: Strategy Layer Foundation (base, indicators, MA Crossover)
+- PR #18: StrategyAPI Implementation
+
+**Technical Decisions**:
+- **Signal Range**: All signals in [-1.0, 1.0] range (buy/hold/sell)
+- **Crossover Detection**: Only generate signal at crossover point (not during trend continuation)
+- **Backtest Simplicity**: Basic implementation following YAGNI (no slippage, commissions)
+- **Test Isolation**: Fixed min_required_rows parameter to avoid validation failures
+- **Data Validation**: Centralized in base Strategy class (OHLCV columns, datetime index, NaN handling)
+
+**Bug Fixes**:
+- Fixed test failures by adding `min_required_rows: 20` to strategy fixture
+- Sample data had 60 rows but default validation required 100 rows
+- Solution: Explicitly set min_required_rows in test fixtures
+
+**Statistics**:
+- 2 PRs created (PR #17, PR #18)
+- 5 new modules implemented (base, indicators, ma_crossover, strategy_api, tests)
+- 152 tests total (100% pass rate)
+- 77% overall code coverage
+- ~800 lines of production code
+- ~1,000 lines of test code
+
+**Key Learnings**:
+- Crossover detection requires careful state tracking to prevent duplicate signals
+- Test fixtures should explicitly set validation parameters (min_required_rows)
+- TA-Lib integration is straightforward with proper pandas wrapper utilities
+- Simple backtest is sufficient for initial validation (advanced backtesting deferred to VectorBT integration)
 
 ### 2026-01-18: Data Validation Implemented ✅ (Rolled Back)
 **Note**: This implementation was rolled back on 2026-01-19 to follow YAGNI principles.
@@ -558,8 +639,8 @@ Validation layer will be re-implemented in Phase 2 after core functionality is s
 |-----------|-------------|-------------|--------|
 | Design Phase Complete | 2026-01-17 | 2026-01-17 | ✅ Done |
 | Phase 1 Start | 2026-01-20 | 2026-01-17 | ✅ Done |
-| Data Layer Complete | 2026-01-29 | 2026-01-19 | 🟡 Core Done (validation deferred) |
-| Strategy Layer Complete | 2026-02-05 | - | 🔵 Planned |
+| Data Layer Complete | 2026-01-29 | 2026-01-19 | ✅ Done (validation deferred) |
+| Strategy Layer Complete | 2026-02-05 | 2026-01-19 | ✅ Done (visualization deferred) |
 | Portfolio & Risk Complete | 2026-02-12 | - | 🔵 Planned |
 | Execution Layer Complete | 2026-02-15 | - | 🔵 Planned |
 | Phase 1 Complete | 2026-02-22 | - | 🔵 Planned |
@@ -638,4 +719,4 @@ Validation layer will be re-implemented in Phase 2 after core functionality is s
 
 **Responsibility**: Project lead/developer
 
-**Last Updated**: 2026-01-17
+**Last Updated**: 2026-01-19
