@@ -153,3 +153,48 @@ class CircuitBreakerError(RiskError):
     """
 
     pass
+
+
+class ExecutionError(AITraderError):
+    """Base exception for execution layer errors.
+
+    Parent class for all execution-related exceptions.
+    """
+
+    pass
+
+
+class OrderRejectedError(ExecutionError):
+    """Raised when an order is rejected.
+
+    Examples:
+        - Insufficient funds
+        - Invalid symbol
+        - Market closed
+    """
+
+    pass
+
+
+class OrderExecutionError(ExecutionError):
+    """Raised when order execution fails.
+
+    Examples:
+        - Broker connection lost
+        - Order timeout
+        - Partial fill with remainder cancelled
+    """
+
+    pass
+
+
+class BrokerConnectionError(ExecutionError):
+    """Raised when broker connection fails.
+
+    Examples:
+        - API authentication failed
+        - Network timeout
+        - Service unavailable
+    """
+
+    pass
