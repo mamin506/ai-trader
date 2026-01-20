@@ -152,7 +152,7 @@ This project uses a **hybrid approach** that combines the strengths of Markdown 
 
 ### Phase 1: Backtesting Foundation
 **Timeline**: 2026-01-20 to 2026-02-15 (planned, ~4 weeks)
-**Status**: 🟡 In Progress (~40% complete)
+**Status**: 🟡 In Progress (~65% complete)
 **Goal**: Complete backtesting system with historical data
 
 ### Phase 2: Paper Trading
@@ -239,18 +239,19 @@ gantt
 - [ ] Signal visualization (low priority, deferred)
 
 **Portfolio Management Layer**:
-- [ ] Abstract `PortfolioManager` interface
-- [ ] Heuristic allocation algorithm
-- [ ] Rebalancing logic (weekly/monthly)
-- [ ] Position tracking
-- [ ] `PortfolioAPI` for analysis
-- [ ] Allocation and performance charts
+- [x] Abstract `PortfolioManager` interface
+- [x] Heuristic allocation algorithm
+- [x] Rebalancing logic (order generation)
+- [x] Position tracking (PortfolioState dataclass)
+- [x] `PortfolioAPI` for analysis
+- [ ] Allocation and performance charts (deferred)
 
 **Risk Management Layer**:
-- [ ] Abstract `RiskManager` interface
-- [ ] Position size limits validation
-- [ ] Cash reserve checks
-- [ ] Basic stop-loss rules
+- [x] Abstract `RiskManager` interface
+- [x] Position size limits validation
+- [x] Cash reserve checks
+- [x] Basic stop-loss rules
+- [x] RiskAPI for user-friendly access
 
 **Execution Layer**:
 - [ ] Abstract `OrderExecutor` interface
@@ -285,9 +286,9 @@ Phase 1 is complete when:
 
 ## Current Sprint
 
-### Sprint: Week of 2026-01-20 (Strategy Layer)
+### Sprint: Week of 2026-01-20 (Portfolio Layer)
 
-**Sprint Goal**: Complete Strategy Layer implementation with StrategyAPI
+**Sprint Goal**: Complete Portfolio Management Layer implementation with PortfolioAPI
 
 **Sprint Tasks**:
 - [x] Create project directory structure (src/, tests/, config/, data/, scripts/, notebooks/)
@@ -317,7 +318,11 @@ Phase 1 is complete when:
 - ✅ DatabaseManager with incremental fetching (2026-01-19)
 - ✅ Strategy Layer foundation (base, indicators, MA Crossover) (2026-01-19)
 - ✅ StrategyAPI implementation (2026-01-19)
-- ✅ Comprehensive test suite (152 tests, 77% coverage) (2026-01-19)
+- ✅ Portfolio Layer foundation (base, HeuristicAllocator) (2026-01-20)
+- ✅ PortfolioAPI implementation (2026-01-20)
+- ✅ Risk Layer foundation (base, BasicRiskManager) (2026-01-20)
+- ✅ RiskAPI implementation (2026-01-20)
+- ✅ Comprehensive test suite (298 tests, 87% coverage) (2026-01-20)
 
 **In Progress**:
 - None
@@ -331,8 +336,10 @@ Phase 1 is complete when:
 - Data layer foundation completed on 2026-01-17 (YFinance + API)
 - Database layer and incremental fetching completed on 2026-01-19
 - Strategy Layer completed on 2026-01-19 (PR #17, PR #18)
+- Portfolio Layer completed on 2026-01-20
+- Risk Layer completed on 2026-01-20
 - Validation layer deferred to Phase 2 (YAGNI principle)
-- Signal visualization deferred (low priority)
+- Signal/allocation visualization deferred (low priority)
 
 ---
 
@@ -503,6 +510,98 @@ Phase 1 is complete when:
 - TA-Lib integration is straightforward with proper pandas wrapper utilities
 - Simple backtest is sufficient for initial validation (advanced backtesting deferred to VectorBT integration)
 
+### 2026-01-20: Portfolio Management Layer Completed ✅
+
+**Completed**:
+- ✅ Abstract `PortfolioManager` interface with allocate/calculate_target_weights/generate_orders methods
+- ✅ `HeuristicAllocator` implementation (signal-strength weighted allocation)
+- ✅ `Order` and `PortfolioState` dataclasses for clean data structures
+- ✅ `AllocationResult` for bundled allocation output
+- ✅ `PortfolioAPI` user-friendly interface for portfolio management
+- ✅ Portfolio exceptions added to exception hierarchy
+- ✅ Comprehensive unit tests (80 new tests for Portfolio layer)
+
+**Portfolio Layer Components**:
+- **Base Classes** (`src/portfolio/base.py`):
+  - `PortfolioManager`: Abstract interface for all allocators
+  - `Order`: Trade order with action, symbol, shares, estimated_value
+  - `OrderAction`: Enum for BUY/SELL
+  - `PortfolioState`: Current portfolio snapshot
+  - `AllocationResult`: Target weights + orders + metrics
+
+- **HeuristicAllocator** (`src/portfolio/heuristic_allocator.py`):
+  - Signal-strength weighted allocation
+  - Configurable: min_signal_threshold, max_positions, cash_buffer, max_position_size
+  - Filters weak signals (< threshold)
+  - Caps individual position sizes
+  - Generates sell orders before buy orders (liquidity management)
+
+- **PortfolioAPI** (`src/api/portfolio_api.py`):
+  - `get_allocation()`: Signals → target weights → orders
+  - `should_rebalance()`: Check drift threshold
+  - `analyze_signals()`: Multi-symbol signal analysis
+  - `get_latest_signals()`: Latest signal for each symbol
+  - `format_orders()` / `format_weights()`: Display helpers
+
+**Test Coverage**:
+- 80 new tests for Portfolio layer
+- 234 total tests (100% pass rate)
+- 85% overall code coverage
+- 100% coverage for HeuristicAllocator
+
+**Statistics**:
+- 3 new modules (base.py, heuristic_allocator.py, portfolio_api.py)
+- ~400 lines of production code
+- ~600 lines of test code
+
+**Key Design Decisions**:
+- Rebalancer logic integrated into HeuristicAllocator.generate_orders()
+- Sell orders generated before buy orders to free up cash
+- PortfolioState captures snapshot of positions, cash, prices
+- AllocationResult bundles weights, orders, and metrics together
+
+### 2026-01-20: Risk Management Layer Completed ✅
+
+**Completed**:
+- ✅ Abstract `RiskManager` interface with validate_weights and check_position_risk methods
+- ✅ `BasicRiskManager` implementation (auto-adjustment mode)
+- ✅ `RiskCheckResult`, `PositionRisk`, `ExitSignal` dataclasses
+- ✅ `RiskAPI` user-friendly interface
+- ✅ Risk exceptions added (RiskError, RiskViolationError, CircuitBreakerError)
+- ✅ Comprehensive unit tests (64 new tests for Risk layer)
+
+**Risk Layer Components**:
+- **Base Classes** (`src/risk/base.py`):
+  - `RiskManager`: Abstract interface for all risk managers
+  - `RiskAction`: Enum (APPROVE, ADJUST, REJECT, etc.)
+  - `RiskCheckResult`: Validation result with adjusted weights
+  - `PositionRisk`: Position-level risk metrics
+  - `ExitSignal`: Signal to exit a position
+
+- **BasicRiskManager** (`src/risk/basic_risk_manager.py`):
+  - Pre-trade validation (Mode B: auto-adjustment)
+  - Position size limits (max_position_size)
+  - Total exposure limits (max_total_exposure)
+  - Cash reserve requirements (min_cash_reserve)
+  - Stop-loss/take-profit/trailing stop checks
+
+- **RiskAPI** (`src/api/risk_api.py`):
+  - `validate_allocation()`: Check and adjust weights
+  - `check_position_risks()`: Check stop-loss triggers
+  - `get_risk_metrics()`: Portfolio risk metrics
+  - `is_compliant()`: Quick compliance check
+
+**Test Coverage**:
+- 64 new tests for Risk layer
+- 298 total tests (100% pass rate)
+- 87% overall code coverage
+- 100% coverage for BasicRiskManager
+
+**Statistics**:
+- 3 new modules (base.py, basic_risk_manager.py, risk_api.py)
+- ~350 lines of production code
+- ~500 lines of test code
+
 ### 2026-01-18: Data Validation Implemented ✅ (Rolled Back)
 **Note**: This implementation was rolled back on 2026-01-19 to follow YAGNI principles.
 Validation layer will be re-implemented in Phase 2 after core functionality is stable.
@@ -641,7 +740,8 @@ Validation layer will be re-implemented in Phase 2 after core functionality is s
 | Phase 1 Start | 2026-01-20 | 2026-01-17 | ✅ Done |
 | Data Layer Complete | 2026-01-29 | 2026-01-19 | ✅ Done (validation deferred) |
 | Strategy Layer Complete | 2026-02-05 | 2026-01-19 | ✅ Done (visualization deferred) |
-| Portfolio & Risk Complete | 2026-02-12 | - | 🔵 Planned |
+| Portfolio Layer Complete | 2026-02-10 | 2026-01-20 | ✅ Done (charts deferred) |
+| Risk Layer Complete | 2026-02-12 | 2026-01-20 | ✅ Done |
 | Execution Layer Complete | 2026-02-15 | - | 🔵 Planned |
 | Phase 1 Complete | 2026-02-22 | - | 🔵 Planned |
 | Phase 2 Start | 2026-03-01 | - | 🔵 Planned |
@@ -719,4 +819,4 @@ Validation layer will be re-implemented in Phase 2 after core functionality is s
 
 **Responsibility**: Project lead/developer
 
-**Last Updated**: 2026-01-19
+**Last Updated**: 2026-01-20

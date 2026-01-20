@@ -68,3 +68,88 @@ class StorageError(DataError):
     """
 
     pass
+
+
+class PortfolioError(AITraderError):
+    """Base exception for portfolio layer errors.
+
+    Parent class for all portfolio-related exceptions.
+    """
+
+    pass
+
+
+class AllocationError(PortfolioError):
+    """Raised when portfolio allocation fails.
+
+    Examples:
+        - Invalid signal values
+        - No investable signals
+        - Configuration constraint violation
+    """
+
+    pass
+
+
+class InsufficientFundsError(PortfolioError):
+    """Raised when there are insufficient funds for an operation.
+
+    Examples:
+        - Not enough cash to execute buy orders
+        - Portfolio value is zero or negative
+    """
+
+    pass
+
+
+class RebalanceError(PortfolioError):
+    """Raised when rebalancing calculation fails.
+
+    Examples:
+        - Missing price data for symbol
+        - Invalid current position data
+    """
+
+    pass
+
+
+class RiskError(AITraderError):
+    """Base exception for risk layer errors.
+
+    Parent class for all risk-related exceptions.
+    """
+
+    pass
+
+
+class RiskViolationError(RiskError):
+    """Raised when a risk rule is violated and cannot be auto-adjusted.
+
+    Examples:
+        - Position size exceeds absolute maximum
+        - Total exposure cannot be reduced to limit
+    """
+
+    pass
+
+
+class RiskConfigError(RiskError):
+    """Raised when risk configuration is invalid.
+
+    Examples:
+        - Invalid risk thresholds
+        - Conflicting risk parameters
+    """
+
+    pass
+
+
+class CircuitBreakerError(RiskError):
+    """Raised when circuit breaker is triggered.
+
+    Examples:
+        - Single-day loss exceeds threshold
+        - Maximum drawdown exceeded
+    """
+
+    pass
