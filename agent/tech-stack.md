@@ -11,7 +11,34 @@ This document records the technology selections for the AI Trader project and th
 
 ## Technology Decisions
 
-### 1. Market Data Acquisition
+### 1. Universe Selection
+
+**Decision**: Custom rule-based selection (Phase 1), yfinance screening (Phase 2)
+
+**Options Considered**:
+- **Custom rule-based**: Liquidity filters, market cap thresholds, sector restrictions
+- **yfinance screening**: Use Yahoo Finance's built-in screening capabilities
+- **External screening services**: Finnhub, Alpha Vantage, or paid screening APIs
+- **Index-based**: Simply track major indices (S&P 500, Russell 2000, etc.)
+
+**Rationale**:
+- **Foundation for realistic backtesting**: Real strategies operate on filtered universes, not entire markets
+- **Performance optimization**: Reduces data fetching/API calls by 90%+ (from 4000+ US stocks to 50-200)
+- **Risk control**: Eliminates low-liquidity stocks that cause slippage issues
+- **Progressive enhancement**: Start simple (static rules), add sophistication later
+- **Zero additional dependencies**: Can implement with existing libraries (pandas filtering)
+
+**Implementation Approach**:
+- Phase 1: Basic filters (min_market_cap: $500M, min_avg_volume: 100K shares, max_price: $1000)
+- Phase 2: Enhanced screening using yfinance's screener API for dynamic criteria
+- Phase 3: Multi-factor selection (volatility, sector balance, etc.)
+
+**Key Interface Design**:
+- `select_universe(criteria: Dict, as_of_date: datetime) -> List[str]`
+- Configuration-driven criteria (YAML-based)
+- Cached results with refresh intervals
+
+### 2. Market Data Acquisition
 
 **Decision**: Start with yfinance, design for provider abstraction
 
@@ -204,6 +231,7 @@ scheduler.start()
 
 | Date | Component | Decision | Status |
 |------|-----------|----------|--------|
+| 2026-01-20 | Universe Selection | Custom rule-based (Phase 1) + yfinance screening (Phase 2) | ✅ Decided |
 | 2026-01-17 | Market Data | yfinance with abstraction layer | ✅ Decided |
 | 2026-01-17 | Strategy Framework | Multi-Factor Portfolio Strategy | ✅ Decided |
 | 2026-01-17 | Technical Indicators | TA-Lib (primary) + pandas-ta (supplementary) | ✅ Decided |

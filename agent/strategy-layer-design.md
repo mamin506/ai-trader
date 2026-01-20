@@ -4,11 +4,11 @@
 
 ## Overview
 
-The Strategy Layer is responsible for analyzing market data and generating trading signals. It operates on data provided by the Data Layer and outputs directional signals with confidence levels for the Portfolio Management Layer to consume.
+The Strategy Layer is responsible for analyzing market data and generating trading signals. It operates on data provided by the Data Layer for symbols selected by the Universe Selection layer, and outputs directional signals with confidence levels for the Portfolio Management Layer to consume.
 
 ## Core Responsibilities
 
-1. **Monitor Universe of Symbols**: Track multiple stock tickers defined in the trading universe
+1. **Monitor Universe of Symbols**: Analyze symbols selected by the Universe Selection layer
 2. **Calculate Technical Indicators**: Compute indicators (MA, RSI, MACD, etc.) using TA-Lib
 3. **Generate Trading Signals**: Output buy/sell/hold signals with strength/confidence scores
 4. **Maintain Independence**: Each strategy analyzes securities independently without knowledge of portfolio allocation

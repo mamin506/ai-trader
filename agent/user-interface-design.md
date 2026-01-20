@@ -34,6 +34,7 @@ graph TB
     end
 
     subgraph Core_Layers["Core System Layers"]
+        Universe[Universe Layer]
         Data[Data Layer]
         Strategy[Strategy Layer]
         Portfolio[Portfolio Layer]

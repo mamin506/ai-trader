@@ -2,7 +2,7 @@
 
 ## Overview
 
-The data layer is responsible for acquiring, storing, and serving market data to the trading system. The design emphasizes **provider abstraction** to enable seamless switching between different data sources without impacting upper layers.
+The data layer is responsible for acquiring, storing, and serving market data for the investable universe defined by the Universe Selection layer. The design emphasizes **provider abstraction** to enable seamless switching between different data sources without impacting upper layers.
 
 ## Core Design Principle
 
@@ -13,6 +13,7 @@ The data layer is responsible for acquiring, storing, and serving market data to
 - **Primary timeframe**: Daily bars (EOD data)
 - **Secondary timeframe**: Hourly/minute bars for research (future consideration)
 - **Not in scope**: Tick data, high-frequency trading
+- **Universe constraint**: Only fetch data for symbols in the current investable universe
 
 This focus on daily data simplifies initial design - real-time streaming can be deferred.
 
@@ -21,7 +22,7 @@ This focus on daily data simplifies initial design - real-time streaming can be 
 ### Abstraction Layer
 
 ```
-Strategy Layer
+Universe Selection → Data Layer → Strategy Layer
       ↓
 DataProvider (Abstract Interface)
       ↓
@@ -105,10 +106,11 @@ Different providers have variations that need normalization:
 ## Progressive Implementation Plan
 
 ### Phase 1: Foundation (Current)
+- Implement `UniverseSelector` abstract base class and basic implementation
 - Implement `DataProvider` abstract base class
 - Implement `YFinanceProvider` as first concrete provider
 - Define standard data formats and contracts
-- **Goal**: Enable strategy development with historical data
+- **Goal**: Enable strategy development with historical data for selected universe
 
 ### Phase 2: Production Data (Post-validation)
 - Implement `AlpacaProvider`
