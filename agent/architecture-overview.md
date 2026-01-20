@@ -14,6 +14,7 @@ graph TB
     end
 
     subgraph Core["AI Trader System"]
+        Universe[Universe Selection<br/>Asset Screening]
         Data[Data Layer<br/>Market Data + Storage]
         Strategy[Strategy Layer<br/>Signal Generation]
         Portfolio[Portfolio Management<br/>Allocation & Rebalancing]
@@ -26,6 +27,7 @@ graph TB
         DB[(SQLite Database<br/>Prices, Signals, Results)]
     end
 
+    Universe -.->|Weekly Universe Update| Data
     Market -->|Historical/Live Data| Data
     Data -->|Price Data| Strategy
     Data <-->|Read/Write| DB
@@ -37,6 +39,7 @@ graph TB
     Broker -->|Fill Confirmation| Execution
     Execution -->|Position Updates| Portfolio
     Execution -->|Trade History| DB
+    Scheduler -.->|Triggers| Universe
     Scheduler -.->|Triggers| Data
     Scheduler -.->|Triggers| Strategy
     Scheduler -.->|Triggers| Portfolio
@@ -45,7 +48,7 @@ graph TB
     classDef externalStyle fill:#fff4e6,stroke:#ff9800,stroke-width:2px
     classDef storageStyle fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
 
-    class Data,Strategy,Portfolio,Risk,Execution,Scheduler layerStyle
+    class Universe,Data,Strategy,Portfolio,Risk,Execution,Scheduler layerStyle
     class Market,Broker externalStyle
     class DB storageStyle
 ```
@@ -57,6 +60,7 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant S as Scheduler
+    participant U as Universe Selection
     participant D as Data Layer
     participant ST as Strategy Layer
     participant P as Portfolio Manager
@@ -65,17 +69,24 @@ sequenceDiagram
     participant B as Broker
     participant DB as SQLite DB
 
+    Note over S: Weekly Universe Update (Every Monday)
+    S->>U: Trigger universe screening job
+    U->>U: Screen market for investable assets
+    U->>DB: Store updated universe
+    U-->>S: Universe update complete
+
     Note over S: Daily 16:30 (Post-Market)
     Note over S: Task Chain: Data → Signal → Portfolio
 
     S->>D: Trigger data update job
-    D->>D: Fetch latest market data
+    D->>DB: Load current universe
+    D->>D: Fetch latest market data (universe symbols only)
     D->>DB: Store daily prices
     D-->>S: Data update complete
 
     Note over S: Wait for data job completion
     S->>ST: Trigger signal generation job
-    ST->>DB: Load historical prices
+    ST->>DB: Load historical prices (universe symbols)
     ST->>ST: Calculate indicators (TA-Lib)
     ST->>ST: Generate signals [-1.0, 1.0]
     ST->>DB: Store signals
@@ -109,6 +120,8 @@ sequenceDiagram
 
 **Task Dependency Chain**:
 - APScheduler orchestrates tasks with explicit dependencies
+- Weekly: Universe Selection (Monday mornings)
+- Daily: Data → Signal → Portfolio chain (post-market)
 - Each task waits for previous task completion before execution
 - Prevents race conditions and ensures data consistency
 - Failed tasks halt the chain and trigger alerts
@@ -119,6 +132,10 @@ sequenceDiagram
 
 ```mermaid
 graph LR
+    subgraph Layer_0["Layer 0: Universe"]
+        Universe[Universe Selection]
+    end
+
     subgraph Layer_1["Layer 1: Foundation"]
         Data[Data Layer]
         Storage[SQLite Storage]
@@ -140,11 +157,13 @@ graph LR
         Execution[Execution Layer]
     end
 
-    subgraph Layer_0["Layer 0: Orchestration"]
+    subgraph Layer_6["Layer 6: Orchestration"]
         Scheduler[APScheduler]
     end
 
+    Universe --> Data
     Data --> Strategy
+    Storage --> Universe
     Storage --> Data
     Storage --> Strategy
     Storage --> Portfolio
@@ -152,17 +171,20 @@ graph LR
     Strategy --> Portfolio
     Portfolio --> Risk
     Risk --> Execution
+    Scheduler -.-> Universe
     Scheduler -.-> Data
     Scheduler -.-> Strategy
     Scheduler -.-> Portfolio
 
+    classDef universeStyle fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
     classDef foundationStyle fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
     classDef intelligenceStyle fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
     classDef decisionStyle fill:#fff3e0,stroke:#ff9800,stroke-width:2px
     classDef controlStyle fill:#fce4ec,stroke:#e91e63,stroke-width:2px
-    classDef actionStyle fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
+    classDef actionStyle fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
     classDef orchestrationStyle fill:#eceff1,stroke:#607d8b,stroke-width:2px
 
+    class Universe universeStyle
     class Data,Storage foundationStyle
     class Strategy intelligenceStyle
     class Portfolio decisionStyle
@@ -173,7 +195,34 @@ graph LR
 
 ## Core Interfaces
 
-### 1. Data Provider Interface
+### 1. Universe Selector Interface
+
+```python
+class UniverseSelector(ABC):
+    """Abstract interface for universe selection."""
+
+    @abstractmethod
+    def select_universe(
+        self,
+        criteria: Dict[str, Any],
+        as_of_date: Optional[datetime] = None
+    ) -> List[str]:
+        """
+        Select investable universe based on criteria.
+
+        Args:
+            criteria: Selection criteria (min_market_cap, min_volume, etc.)
+            as_of_date: Date for universe selection (default: today)
+
+        Returns:
+            List of selected symbols
+        """
+        pass
+```
+
+**Implementations**: `BasicUniverseSelector`, `LiquidityUniverseSelector`, `MultiFactorUniverseSelector`
+
+### 2. Data Provider Interface
 
 ```python
 class DataProvider(ABC):
@@ -198,7 +247,7 @@ class DataProvider(ABC):
 
 **Implementations**: `YFinanceProvider`, `AlpacaProvider`, `IBProvider`
 
-### 2. Strategy Interface
+### 3. Strategy Interface
 
 ```python
 class Strategy(ABC):
@@ -222,7 +271,7 @@ class Strategy(ABC):
 
 **Implementations**: `MACrossoverStrategy`, `MomentumStrategy`, `MultiFactorStrategy`
 
-### 3. Portfolio Manager Interface
+### 4. Portfolio Manager Interface
 
 ```python
 class PortfolioManager(ABC):
@@ -246,7 +295,7 @@ class PortfolioManager(ABC):
 
 **Implementations**: `HeuristicAllocator`, `RiskParityAllocator`, `BlackLittermanAllocator`
 
-### 4. Risk Manager Interface
+### 5. Risk Manager Interface
 
 ```python
 class RiskManager(ABC):
@@ -270,7 +319,7 @@ class RiskManager(ABC):
 
 **Implementations**: `BasicRiskManager`, `DynamicRiskManager`, `AdvancedRiskManager`
 
-### 5. Order Executor Interface
+### 6. Order Executor Interface
 
 ```python
 class OrderExecutor(ABC):
@@ -331,6 +380,7 @@ The system will be built in three progressive phases, each building on the previ
 **Goal**: Complete backtesting system with historical data
 
 **Key Deliverables**:
+- Universe Layer: Basic universe selection (liquidity, market cap filters)
 - Data Layer: YFinance provider, SQLite storage, data quality validation
 - Strategy Layer: TA-Lib integration, MA Crossover strategy, signal generation
 - Portfolio Layer: Heuristic allocation, weekly/monthly rebalancing
@@ -380,6 +430,16 @@ execution:
   mode: "backtest"  # Options: backtest, paper, live
   provider: "alpaca"
 
+# Universe Selection
+universe:
+  selector: "basic"  # Options: basic, liquidity, multifactor
+  update_frequency: "weekly"  # Options: daily, weekly, monthly
+  criteria:
+    min_market_cap: 500000000  # $500M minimum
+    min_avg_volume: 100000     # 100K shares/day minimum
+    max_price: 1000.0          # $1000 max price
+    sectors: ["technology", "healthcare", "consumer"]  # Optional sector filter
+
 # Data Provider
 data:
   provider: "yfinance"  # Options: yfinance, alpaca, ib
@@ -392,7 +452,6 @@ strategy:
   parameters:
     fast_period: 50
     slow_period: 200
-    universe: ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
 
 # Portfolio Management
 portfolio:
@@ -408,7 +467,8 @@ risk:
 
 # Scheduling
 scheduling:
-  data_update_time: "16:30"  # Daily post-market
+  universe_update_time: "09:00"  # Weekly Monday morning
+  data_update_time: "16:30"      # Daily post-market
   rebalance_frequency: "weekly"  # Options: daily, weekly, monthly
 ```
 
@@ -422,6 +482,7 @@ scheduling:
 
 | Layer | Component | Technology |
 |-------|-----------|------------|
+| **Universe** | Selection | Custom Rules (Phase 1) → yfinance screening (Phase 2) |
 | **Data** | Market Data | yfinance → Alpaca → IB |
 | **Data** | Storage | SQLite + Pandas |
 | **Strategy** | Indicators | TA-Lib (primary), pandas-ta (supplement) |
@@ -443,6 +504,7 @@ scheduling:
 5. **Data Integrity**: All trades, signals, and results are logged to SQLite
 6. **Testability**: Each layer can be tested independently with mocks
 7. **Performance**: Leverage compiled libraries (TA-Lib, NumPy, VectorBT) for speed
+8. **Universe Efficiency**: Only process data for investable assets to optimize performance
 
 ## Key Architectural Decisions
 
@@ -477,6 +539,13 @@ scheduling:
 - Strategy Layer focuses on signal generation (what to buy/sell)
 - Risk Layer enforces limits (how much, when to exit)
 - Separation prevents strategies from bypassing risk controls
+
+### 6. Why Universe Selection Layer?
+
+- Filters market to investable assets before data fetching
+- Reduces API calls and processing overhead
+- Enables dynamic portfolio composition based on market conditions
+- Separates asset selection criteria from trading strategies
 
 ## Error Handling and Resilience
 

@@ -215,10 +215,16 @@ gantt
 
 **Infrastructure**:
 - [x] Design documents completed (2026-01-17)
-- [x] Project structure created (src/, tests/, config/, scripts/)
+- [x] Project structure created (src/, tests/, config/, scripts/, notebooks/)
 - [x] Configuration management (YAML loader)
 - [x] Logging framework setup
 - [x] Exception hierarchy defined
+
+**Universe Layer**:
+- [ ] Abstract `UniverseSelector` interface
+- [ ] Basic universe selector (liquidity, market cap filters)
+- [ ] UniverseAPI for user-friendly access
+- [ ] Unit tests for universe selection logic
 
 **Data Layer**:
 - [x] Abstract `DataProvider` interface
