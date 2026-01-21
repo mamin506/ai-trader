@@ -182,6 +182,139 @@ class DatabaseManager:
             logger.error(f"Failed to get latest date for {symbol}: {e}")
             raise DataError(f"Database error: {e}") from e
 
+    def save_universe(
+        self,
+        name: str,
+        symbols: List[str],
+        date: datetime,
+        ranks: Optional[List[int]] = None,
+        metadata: Optional[List[dict]] = None,
+    ) -> None:
+        """Save universe selection to database.
+
+        Args:
+            name: Universe name (e.g., 'default', 'tech_stocks')
+            symbols: List of stock symbols
+            date: Selection date
+            ranks: Optional ranking for each symbol
+            metadata: Optional metadata dict for each symbol
+        """
+        if not symbols:
+            logger.warning(f"Attempted to save empty universe: {name}")
+            return
+
+        date_str = date.strftime("%Y-%m-%d")
+        created_at = datetime.utcnow().isoformat()
+
+        # Prepare records
+        records = []
+        for i, symbol in enumerate(symbols):
+            rank = ranks[i] if ranks else i + 1
+            meta = metadata[i] if metadata else None
+
+            # Convert metadata dict to JSON string
+            import json
+            meta_json = json.dumps(meta) if meta else None
+
+            records.append({
+                "name": name,
+                "symbol": symbol,
+                "date": date_str,
+                "rank": rank,
+                "metadata": meta_json,
+                "created_at": created_at,
+            })
+
+        insert_sql = """
+            INSERT INTO universes
+            (name, symbol, date, rank, metadata, created_at)
+            VALUES (:name, :symbol, :date, :rank, :metadata, :created_at)
+            ON CONFLICT(name, symbol, date) DO UPDATE SET
+            rank=excluded.rank,
+            metadata=excluded.metadata,
+            created_at=excluded.created_at
+        """
+
+        conn = self._get_connection()
+        try:
+            with conn:
+                conn.executemany(insert_sql, records)
+            logger.info(
+                f"Saved universe '{name}' with {len(records)} symbols for {date_str}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to save universe: {e}")
+            raise DataError(f"Failed to save universe: {e}") from e
+
+    def load_universe(
+        self,
+        name: str,
+        date: datetime,
+    ) -> pd.DataFrame:
+        """Load universe selection from database.
+
+        Args:
+            name: Universe name
+            date: Selection date
+
+        Returns:
+            DataFrame with columns: symbol, rank, metadata
+        """
+        date_str = date.strftime("%Y-%m-%d")
+
+        query = """
+            SELECT symbol, rank, metadata
+            FROM universes
+            WHERE name = ? AND date = ?
+            ORDER BY rank ASC
+        """
+
+        conn = self._get_connection()
+        try:
+            df = pd.read_sql_query(
+                query,
+                conn,
+                params=(name, date_str),
+            )
+
+            # Parse metadata JSON
+            if not df.empty and "metadata" in df.columns:
+                import json
+                df["metadata"] = df["metadata"].apply(
+                    lambda x: json.loads(x) if x else None
+                )
+
+            return df
+        except Exception as e:
+            logger.error(f"Failed to load universe: {e}")
+            raise DataError(f"Failed to load universe: {e}") from e
+
+    def get_universe_dates(self, name: str) -> List[str]:
+        """Get all dates for which a universe exists.
+
+        Args:
+            name: Universe name
+
+        Returns:
+            List of date strings (YYYY-MM-DD)
+        """
+        query = """
+            SELECT DISTINCT date
+            FROM universes
+            WHERE name = ?
+            ORDER BY date DESC
+        """
+
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query, (name,))
+            results = cursor.fetchall()
+            return [row[0] for row in results]
+        except Exception as e:
+            logger.error(f"Failed to get universe dates: {e}")
+            raise DataError(f"Database error: {e}") from e
+
     def close(self):
         """Close the thread-local connection."""
         if hasattr(self._local, "connection"):
