@@ -58,8 +58,10 @@ class DataAPI:
         self.db = DatabaseManager(db_path)
 
         # Load config for update_data method, as it's no longer passed directly
-        # This assumes a default config path if not explicitly managed
-        self.config = load_config("config/default.yaml")
+        # Use absolute path to config file relative to project root
+        root_dir = Path(__file__).parent.parent.parent
+        config_path = root_dir / "config" / "default.yaml"
+        self.config = load_config(str(config_path))
 
         logger.debug("DataAPI initialized with %s and DB at %s", type(self.provider).__name__, db_path)
 

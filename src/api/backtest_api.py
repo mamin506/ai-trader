@@ -282,6 +282,88 @@ class BacktestAPI:
         """
         return result.daily_returns.copy()
 
+    def calculate_buy_and_hold_return(
+        self,
+        symbol: str,
+        start_date: Union[str, datetime],
+        end_date: Union[str, datetime],
+        initial_cash: float = 100000.0,
+    ) -> Dict[str, float]:
+        """Calculate buy-and-hold return for a symbol.
+
+        This simulates buying the symbol on day 1 and holding until the end.
+
+        Args:
+            symbol: Ticker symbol
+            start_date: Start date
+            end_date: End date
+            initial_cash: Starting capital
+
+        Returns:
+            Dict with buy-and-hold metrics
+        """
+        # Parse dates
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        # Fetch price data
+        price_data = self._fetch_price_data([symbol], start_date, end_date)
+
+        if symbol not in price_data or price_data[symbol].empty:
+            raise ValueError(f"No data available for {symbol}")
+
+        df = price_data[symbol]
+
+        # Get first and last close prices
+        first_price = df.iloc[0]['close']
+        last_price = df.iloc[-1]['close']
+
+        # Calculate shares bought on day 1
+        shares = initial_cash / first_price
+
+        # Calculate final value
+        final_value = shares * last_price
+
+        # Calculate returns
+        total_return = (final_value - initial_cash) / initial_cash
+        num_days = (df.index[-1] - df.index[0]).days
+        years = num_days / 365.25
+        annualized_return = (final_value / initial_cash) ** (1 / years) - 1 if years > 0 else 0
+
+        # Calculate daily returns
+        daily_returns = df['close'].pct_change().dropna()
+
+        # Calculate Sharpe ratio (assuming risk-free rate = 0)
+        if len(daily_returns) > 1:
+            sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * (252 ** 0.5) if daily_returns.std() > 0 else None
+        else:
+            sharpe_ratio = None
+
+        # Calculate max drawdown
+        cumulative = (1 + daily_returns).cumprod()
+        running_max = cumulative.cummax()
+        drawdown = (cumulative - running_max) / running_max
+        max_drawdown = abs(drawdown.min())
+
+        return {
+            'symbol': symbol,
+            'initial_cash': initial_cash,
+            'final_value': final_value,
+            'total_return': total_return,
+            'total_return_pct': total_return * 100,
+            'annualized_return': annualized_return,
+            'sharpe_ratio': sharpe_ratio,
+            'max_drawdown': max_drawdown,
+            'num_days': num_days,
+            'first_price': first_price,
+            'last_price': last_price,
+            'shares': shares,
+            'start_date': df.index[0],
+            'end_date': df.index[-1],
+        }
+
     def compare_results(
         self,
         results: Dict[str, BacktestResult],
