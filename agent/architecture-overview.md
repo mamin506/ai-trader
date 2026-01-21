@@ -547,6 +547,22 @@ scheduling:
 - Enables dynamic portfolio composition based on market conditions
 - Separates asset selection criteria from trading strategies
 
+**Implementation Notes for Phase 1**:
+1. **Database Storage**: Add `universes` table to track historical universe composition
+   ```sql
+   CREATE TABLE universes (
+       date DATE NOT NULL,
+       symbol TEXT NOT NULL,
+       market_cap REAL,
+       avg_volume REAL,
+       PRIMARY KEY (date, symbol)
+   );
+   ```
+2. **Backward Compatibility**: Maintain `symbols` parameter in BacktestAPI for existing tests
+3. **Static Universe**: Phase 1 uses static symbol lists (e.g., S&P 500 constituents)
+4. **yfinance Screening**: Phase 2 will use Alpaca screener API or polygon.io (yfinance lacks screening)
+5. **Historical Reconstruction**: Backtesting requires reconstructing universe at each rebalance date
+
 ## Error Handling and Resilience
 
 ### Error Handling Strategy

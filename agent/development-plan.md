@@ -220,11 +220,19 @@ gantt
 - [x] Logging framework setup
 - [x] Exception hierarchy defined
 
-**Universe Layer**:
+**Universe Layer** (Deferred to Phase 1.5 - after core backtesting complete):
 - [ ] Abstract `UniverseSelector` interface
 - [ ] Basic universe selector (liquidity, market cap filters)
 - [ ] UniverseAPI for user-friendly access
 - [ ] Unit tests for universe selection logic
+- [ ] Database schema for universes table
+- [ ] Backward compatibility with existing symbols parameter
+- [ ] Historical universe reconstruction for backtesting
+
+**Notes**:
+- Current backtesting uses explicit symbol lists (backward compatible)
+- Universe Layer adds efficiency but not required for Phase 1 completion
+- Will implement after CLI tools and notebooks are complete
 
 **Data Layer**:
 - [x] Abstract `DataProvider` interface
@@ -277,9 +285,9 @@ gantt
 - [x] Unit tests for all layers (>80% coverage) - 394 tests, 89% coverage
 - [x] Integration tests for end-to-end workflow (via BacktestOrchestrator)
 - [x] Example backtest with MA crossover strategy (via BacktestAPI)
-- [ ] Performance report generation
-- [ ] CLI tools (view_data.py, test_strategy.py, view_portfolio.py)
-- [ ] Example Jupyter notebooks
+- [x] CLI tools (view_data.py, test_strategy.py, view_portfolio.py)
+- [x] Example Jupyter notebooks (01_backtesting_tutorial.ipynb)
+- [ ] Performance report generation (deferred - basic reports available via BacktestAPI.format_results)
 
 ### Success Criteria
 
@@ -665,6 +673,42 @@ Phase 1 is complete when:
 - Commission uses max(per_share * shares, minimum)
 - Sell orders require sufficient shares (no short selling in Phase 1)
 - Position removed when shares reach zero
+
+### 2026-01-21: CLI Tools and Notebooks Completed ✅
+
+**Completed**:
+- ✅ `view_portfolio.py` CLI tool for portfolio backtesting and strategy comparison
+- ✅ Enhanced scripts/README.md documentation
+- ✅ Created `01_backtesting_tutorial.ipynb` Jupyter notebook
+- ✅ Created notebooks/README.md with usage guide
+- ✅ Documented Universe Selection design improvements in architecture-overview.md
+- ✅ Updated development-plan.md with Universe Layer deferral to Phase 1.5
+
+**CLI Tools**:
+- **view_portfolio.py**:
+  - `backtest` command: Run portfolio backtests on multiple symbols
+  - `compare` command: Compare MA(10/30), MA(20/50), MA(50/200) configurations
+  - Options: custom capital, rebalancing frequency, show trades/equity
+  - Integration with BacktestAPI for comprehensive analysis
+
+**Jupyter Notebook**:
+- **01_backtesting_tutorial.ipynb**:
+  - 5 sections: Data, Strategy, Portfolio, Performance, Comparison
+  - Includes visualizations: price charts, MA signals, equity curves, returns distribution
+  - Educational content with explanations and examples
+  - Covers DataAPI, StrategyAPI, and BacktestAPI usage
+
+**Documentation Updates**:
+- Updated scripts/README.md with view_portfolio.py documentation
+- Added notebooks/README.md with Jupyter usage guide
+- Documented Universe Selection implementation notes in architecture-overview.md
+- Marked Universe Layer as Phase 1.5 (deferred after core backtesting)
+
+**Statistics**:
+- 2 new scripts (view_portfolio.py with 330+ lines)
+- 1 comprehensive Jupyter notebook (01_backtesting_tutorial.ipynb)
+- 2 new README files
+- Phase 1 deliverables: ~95% complete
 
 ### 2026-01-20: Orchestration Layer Completed ✅
 
