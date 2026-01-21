@@ -110,13 +110,17 @@ class Config:
         return self._config.copy()
 
 
-def load_config(filepath: str | Path = "config/default.yaml") -> Config:
+def load_config(filepath: str | Path = None) -> Config:
     """Helper function to load configuration.
 
     Args:
-        filepath: Path to YAML configuration file
+        filepath: Path to YAML configuration file. If None, uses default path.
 
     Returns:
         Config instance
     """
+    if filepath is None:
+        # Use absolute path to default config relative to project root
+        root_dir = Path(__file__).parent.parent.parent
+        filepath = root_dir / "config" / "default.yaml"
     return Config.from_file(filepath)
