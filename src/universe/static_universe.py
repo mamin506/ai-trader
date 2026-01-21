@@ -12,7 +12,7 @@ from typing import Optional
 
 import pandas as pd
 
-from src.data.providers.yfinance_provider import YFinanceProvider
+from src.api.data_api import DataAPI
 from src.universe.providers.alphavantage import AlphaVantageProvider
 from src.universe.universe_selector import UniverseSelector
 from src.utils.exceptions import DataProviderError
@@ -39,7 +39,7 @@ class StaticUniverseSelector(UniverseSelector):
     def __init__(
         self,
         cache_dir: Optional[Path] = None,
-        data_provider: Optional[YFinanceProvider] = None,
+        data_api: Optional[DataAPI] = None,
         # Filter parameters
         exchanges: Optional[list[str]] = None,
         min_price: float = 5.0,
@@ -52,7 +52,7 @@ class StaticUniverseSelector(UniverseSelector):
 
         Args:
             cache_dir: Directory for caching listings
-            data_provider: YFinance provider for price/volume data
+            data_api: DataAPI for price/volume data
             exchanges: List of exchanges (default: ['NASDAQ', 'NYSE'])
             min_price: Minimum stock price (default: $5)
             max_price: Maximum stock price (optional)
@@ -69,7 +69,7 @@ class StaticUniverseSelector(UniverseSelector):
 
         # Initialize providers
         self.listings_provider = AlphaVantageProvider(cache_dir=cache_dir)
-        self.data_provider = data_provider or YFinanceProvider()
+        self.data_api = data_api or DataAPI()
 
         # Filter parameters
         self.exchanges = exchanges or ["NASDAQ", "NYSE", "NYSE ARCA"]
@@ -187,6 +187,15 @@ class StaticUniverseSelector(UniverseSelector):
         if self.exchanges:
             filtered = self.filter_by_exchange(filtered, self.exchanges)
 
+        # Filter out symbols with special characters that are likely problematic
+        # These are often warrants, preferred shares, etc.
+        # Keep only: letters, numbers, and single hyphen (not at start/end)
+        filtered = filtered[
+            filtered['symbol'].str.match(r'^[A-Z][A-Z0-9]*(-[A-Z0-9]+)?$')
+        ]
+
+        logger.debug(f"After filtering invalid symbols: {len(filtered)} stocks")
+
         return filtered
 
     def _enrich_with_market_data(
@@ -229,20 +238,17 @@ class StaticUniverseSelector(UniverseSelector):
                 len(batch_symbols),
             )
 
-            # Fetch price data for batch
-            try:
-                price_data = self.data_provider.get_daily_bars(
-                    batch_symbols,
-                    start=start_date.strftime("%Y-%m-%d"),
-                    end=end_date.strftime("%Y-%m-%d"),
-                )
+            # Fetch price data for each symbol in batch
+            for symbol in batch_symbols:
+                try:
+                    symbol_df = self.data_api.get_daily_bars(
+                        symbol,
+                        start=start_date.strftime("%Y-%m-%d"),
+                        end=end_date.strftime("%Y-%m-%d"),
+                    )
 
-                # Calculate metrics for each symbol
-                for symbol in batch_symbols:
-                    if symbol not in price_data or price_data[symbol].empty:
+                    if symbol_df.empty:
                         continue
-
-                    symbol_df = price_data[symbol]
 
                     # Get latest price
                     latest_price = symbol_df.iloc[-1]["close"]
@@ -263,11 +269,11 @@ class StaticUniverseSelector(UniverseSelector):
                         }
                     )
 
-            except Exception as e:
-                logger.warning(
-                    "Failed to fetch market data for batch: %s", e
-                )
-                continue
+                except Exception as e:
+                    logger.debug(
+                        "Failed to fetch data for %s: %s", symbol, e
+                    )
+                    continue
 
         # Merge market data with listings
         if market_data_list:
