@@ -13,6 +13,8 @@ from typing import Optional
 import pandas as pd
 
 from src.api.data_api import DataAPI
+from src.data.providers.yfinance_provider import YFinanceProvider
+from src.data.storage.database import DatabaseManager
 from src.universe.providers.alphavantage import AlphaVantageProvider
 from src.universe.universe_selector import UniverseSelector
 from src.utils.exceptions import DataProviderError
@@ -70,6 +72,11 @@ class StaticUniverseSelector(UniverseSelector):
         # Initialize providers
         self.listings_provider = AlphaVantageProvider(cache_dir=cache_dir)
         self.data_api = data_api or DataAPI()
+        self.yf_provider = YFinanceProvider()
+
+        # Database for checking cached data
+        db_path = "data/market_data.db"
+        self.db = DatabaseManager(db_path)
 
         # Filter parameters
         self.exchanges = exchanges or ["NASDAQ", "NYSE", "NYSE ARCA"]
@@ -203,8 +210,13 @@ class StaticUniverseSelector(UniverseSelector):
     ) -> pd.DataFrame:
         """Enrich listings with market data (price, volume, market cap).
 
-        This is the expensive operation that requires fetching data from YFinance.
-        We do this after initial filtering to reduce API calls.
+        Uses caching and batch fetching to minimize API calls and avoid
+        rate limiting.
+
+        Strategy:
+        1. Check database for cached data first
+        2. Batch fetch missing data from YFinance
+        3. Save new data to cache
 
         Args:
             df: DataFrame with 'symbol' column
@@ -213,66 +225,127 @@ class StaticUniverseSelector(UniverseSelector):
         Returns:
             DataFrame enriched with market data columns
         """
+        from datetime import timedelta
+
         symbols = df["symbol"].tolist()
 
         if not symbols:
             return df
 
         # Get recent price data (last 30 days for avg volume calculation)
-        from datetime import timedelta
-
         start_date = date - timedelta(days=30)
         end_date = date
 
-        # Fetch data in batches to avoid overwhelming the API
-        batch_size = 100
+        logger.info(
+            "Enriching %d symbols with market data (%s to %s)",
+            len(symbols),
+            start_date.strftime("%Y-%m-%d"),
+            end_date.strftime("%Y-%m-%d"),
+        )
+
         market_data_list = []
+        symbols_to_fetch = []
 
-        for i in range(0, len(symbols), batch_size):
-            batch_symbols = symbols[i : i + batch_size]
+        # Step 1: Try to get data from cache first
+        for symbol in symbols:
+            try:
+                cached_df = self.db.load_bars(symbol, start_date, end_date)
 
-            logger.debug(
-                "Fetching market data for batch %d/%d (%d symbols)",
-                i // batch_size + 1,
-                (len(symbols) + batch_size - 1) // batch_size,
-                len(batch_symbols),
-            )
-
-            # Fetch price data for each symbol in batch
-            for symbol in batch_symbols:
-                try:
-                    symbol_df = self.data_api.get_daily_bars(
-                        symbol,
-                        start=start_date.strftime("%Y-%m-%d"),
-                        end=end_date.strftime("%Y-%m-%d"),
-                    )
-
-                    if symbol_df.empty:
-                        continue
-
-                    # Get latest price
-                    latest_price = symbol_df.iloc[-1]["close"]
-
-                    # Calculate average volume (last 20 days)
-                    avg_volume = symbol_df["volume"].tail(20).mean()
-
-                    # Market cap requires shares outstanding (not available in yfinance daily data)
-                    # For now, we'll skip market cap and add it in Phase 2 with fundamental data
-                    market_cap = None
+                if not cached_df.empty and len(cached_df) >= 20:
+                    # Have enough cached data
+                    latest_price = cached_df.iloc[-1]["close"]
+                    avg_volume = cached_df["volume"].tail(20).mean()
 
                     market_data_list.append(
                         {
                             "symbol": symbol,
                             "price": latest_price,
                             "avg_volume": avg_volume,
-                            "market_cap": market_cap,
+                            "market_cap": None,
                         }
                     )
+                else:
+                    # Need to fetch
+                    symbols_to_fetch.append(symbol)
+
+            except Exception:
+                # Cache miss or error, need to fetch
+                symbols_to_fetch.append(symbol)
+
+        logger.info(
+            "Found %d symbols in cache, need to fetch %d",
+            len(market_data_list),
+            len(symbols_to_fetch),
+        )
+
+        # Step 2: Batch fetch missing data
+        if symbols_to_fetch:
+            import time
+
+            # Use smaller batches to avoid rate limiting
+            # YFinance allows ~2000 requests/hour = ~33 per minute
+            # With batch of 20 and 2 second delay = 600 symbols/hour
+            batch_size = 20
+
+            for i in range(0, len(symbols_to_fetch), batch_size):
+                batch_symbols = symbols_to_fetch[i: i + batch_size]
+
+                logger.info(
+                    "Fetching batch %d/%d (%d symbols)...",
+                    i // batch_size + 1,
+                    (len(symbols_to_fetch) + batch_size - 1) // batch_size,
+                    len(batch_symbols),
+                )
+
+                try:
+                    # Use batch fetching
+                    price_data = self.yf_provider.get_historical_bars_batch(
+                        batch_symbols,
+                        start_date,
+                        end_date,
+                    )
+
+                    # Process results
+                    for symbol, symbol_df in price_data.items():
+                        if symbol_df.empty or len(symbol_df) < 20:
+                            continue
+
+                        # Get latest price
+                        latest_price = symbol_df.iloc[-1]["close"]
+
+                        # Calculate average volume (last 20 days)
+                        avg_volume = symbol_df["volume"].tail(20).mean()
+
+                        market_data_list.append(
+                            {
+                                "symbol": symbol,
+                                "price": latest_price,
+                                "avg_volume": avg_volume,
+                                "market_cap": None,
+                            }
+                        )
+
+                        # Save to cache
+                        try:
+                            self.db.save_bars(symbol_df, symbol)
+                        except Exception as e:
+                            logger.debug("Failed to cache %s: %s", symbol, e)
+
+                    logger.info(
+                        "Batch complete: %d/%d successful",
+                        len(price_data),
+                        len(batch_symbols),
+                    )
+
+                    # Add delay between batches to respect rate limits
+                    if i + batch_size < len(symbols_to_fetch):
+                        logger.debug("Waiting 2s before next batch...")
+                        time.sleep(2)
 
                 except Exception as e:
-                    logger.debug(
-                        "Failed to fetch data for %s: %s", symbol, e
-                    )
+                    logger.warning("Batch fetch failed: %s", e)
+                    # On error, wait longer before retry
+                    time.sleep(5)
                     continue
 
         # Merge market data with listings
