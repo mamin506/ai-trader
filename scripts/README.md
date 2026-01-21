@@ -4,6 +4,56 @@ This directory contains command-line tools for interacting with the AI Trader sy
 
 ## Available Scripts
 
+### view_portfolio.py
+
+Portfolio backtesting and strategy comparison tool.
+
+**Features**:
+- Run backtests on multi-symbol portfolios
+- Compare multiple strategy configurations
+- Analyze portfolio allocation and rebalancing
+- View trade history and equity curves
+- Support for daily/weekly/monthly rebalancing
+
+**Basic Usage**:
+```bash
+# Run backtest on portfolio
+python scripts/view_portfolio.py backtest AAPL MSFT GOOGL
+
+# Backtest with custom parameters
+python scripts/view_portfolio.py backtest AAPL MSFT GOOGL \\
+    -p fast_period=10 -p slow_period=30 \\
+    --capital 100000 --rebalance weekly
+
+# Show trade history and equity curve
+python scripts/view_portfolio.py backtest AAPL MSFT \\
+    --show-trades --show-equity
+
+# Compare different MA configurations
+python scripts/view_portfolio.py compare AAPL MSFT GOOGL \\
+    --start 2024-01-01 --end 2024-12-31
+```
+
+**Commands**:
+- `backtest`: Run backtest on portfolio of symbols
+- `compare`: Compare multiple MA Crossover configurations
+
+**Backtest Options**:
+- `--strategy TEXT`: Strategy name (default: ma-crossover)
+- `--start DATE`: Start date (YYYY-MM-DD)
+- `--end DATE`: End date (YYYY-MM-DD)
+- `--capital FLOAT`: Initial capital (default: $100,000)
+- `-p, --param KEY=VALUE`: Strategy parameter
+- `--rebalance TEXT`: Rebalance frequency (daily/weekly/monthly)
+- `--max-positions INT`: Max number of positions (default: 10)
+- `--show-trades`: Show all trades
+- `--show-equity`: Show equity curve
+
+**Compare Options**:
+- Tests MA(10/30), MA(20/50), and MA(50/200) configurations
+- Displays comparison table with key metrics
+- Shows best performing strategy
+
 ### test_strategy.py
 
 Test trading strategies on historical data with backtesting.
