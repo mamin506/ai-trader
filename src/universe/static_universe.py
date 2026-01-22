@@ -6,6 +6,7 @@ trading universe.
 """
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -20,6 +21,77 @@ from src.universe.universe_selector import UniverseSelector
 from src.utils.exceptions import DataProviderError
 
 logger = logging.getLogger(__name__)
+
+
+# Pre-defined list of known high-liquidity US stocks
+# These are commonly traded large-cap stocks that are always active
+# Used as a seed list when high filters are applied
+# Note: This list should be periodically reviewed and updated
+# Removed delisted/merged: SQ->BLOCK, ATVI (merged with MSFT), PXD (merged with XOM), PARA, U
+HIGH_LIQUIDITY_SEEDS = [
+    # Tech Giants
+    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "NVDA", "TSLA",
+    # Semiconductors
+    "AMD", "INTC", "AVGO", "QCOM", "MU", "AMAT", "LRCX", "KLAC", "MRVL", "ON",
+    # Software/Cloud
+    "CRM", "ORCL", "ADBE", "NOW", "SNOW", "PLTR", "PANW", "CRWD", "ZS", "DDOG",
+    # Other Tech
+    "NFLX", "PYPL", "SHOP", "UBER", "ABNB", "DASH", "COIN", "RBLX", "NET", "MDB",
+    # Finance
+    "JPM", "BAC", "WFC", "C", "GS", "MS", "BLK", "SCHW", "AXP", "V", "MA",
+    # Healthcare
+    "JNJ", "UNH", "PFE", "ABBV", "MRK", "LLY", "TMO", "ABT", "BMY", "GILD",
+    # Consumer
+    "WMT", "COST", "HD", "TGT", "LOW", "NKE", "SBUX", "MCD", "KO", "PEP",
+    # Industrial
+    "CAT", "DE", "BA", "GE", "HON", "MMM", "UPS", "FDX", "LMT", "RTX",
+    # Energy
+    "XOM", "CVX", "COP", "SLB", "OXY", "MPC", "VLO", "PSX", "EOG", "DVN",
+    # Communication
+    "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "EA", "TTWO", "WBD", "NWSA",
+    # ETFs
+    "SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "XLF", "XLK", "XLE", "XLV",
+]
+
+
+def is_valid_trading_symbol(symbol: str) -> bool:
+    """Check if a symbol is a valid tradeable stock (not warrant, unit, etc.).
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        True if symbol is likely a regular stock, False otherwise
+
+    Rules:
+        - Class shares: SYMBOL-A or SYMBOL-B (like BRK-A, BRK-B) are valid
+        - Any other hyphenated symbol is likely warrant/unit/rights - invalid
+        - 1-4 letter symbols are always valid (AAPL, MSFT, etc.)
+        - 5-letter symbols ending in W, U, R are likely warrants/units/rights - invalid
+        - Other 5-letter symbols are valid (GOOGL, NVDA, etc.)
+    """
+    if not symbol or not isinstance(symbol, str):
+        return False
+
+    # Class shares: SYMBOL-A or SYMBOL-B (like BRK-A, BRK-B)
+    if re.match(r'^[A-Z]{1,4}-[AB]$', symbol):
+        return True
+
+    # Any other hyphenated symbol is likely warrant/unit
+    if '-' in symbol:
+        return False
+
+    # Simple symbols: 1-4 uppercase letters (always valid)
+    if re.match(r'^[A-Z]{1,4}$', symbol):
+        return True
+
+    # 5-letter symbols: exclude those ending in W, U, R (warrants, units, rights)
+    if re.match(r'^[A-Z]{5}$', symbol):
+        if symbol[-1] in ('W', 'U', 'R'):
+            return False
+        return True
+
+    return False
 
 
 class StaticUniverseSelector(UniverseSelector):
@@ -92,12 +164,15 @@ class StaticUniverseSelector(UniverseSelector):
         self,
         date: Optional[datetime] = None,
         top_n: int = 100,
+        use_seed_list: Optional[bool] = None,
     ) -> list[str]:
         """Select stocks for the universe.
 
         Args:
             date: Date for selection (currently not used in Phase 1.5)
             top_n: Maximum number of stocks to select
+            use_seed_list: If True, start from pre-defined high-liquidity seeds.
+                          If None (default), auto-detect based on filters.
 
         Returns:
             List of stock symbols
@@ -114,22 +189,51 @@ class StaticUniverseSelector(UniverseSelector):
             top_n,
         )
 
-        # Step 1: Get all active stocks
-        df = self.listings_provider.get_active_stocks(
-            exchanges=self.exchanges,
-            use_cache=True,
-        )
+        # Auto-detect if we should use seed list
+        # Use seeds when high filters are set (reduces API calls significantly)
+        if use_seed_list is None:
+            use_seed_list = (
+                self.min_avg_volume >= 5_000_000 or  # High volume filter
+                self.min_price >= 50.0 or            # High price filter
+                top_n <= 50                          # Small selection
+            )
 
-        logger.info("Fetched %d active stocks from listings", len(df))
+        if use_seed_list:
+            logger.info(
+                "Using seed list (high filters detected: min_vol=%s, min_price=%s)",
+                f"{self.min_avg_volume:,.0f}",
+                f"${self.min_price:.2f}",
+            )
+            # Start from seed list - much faster
+            df = pd.DataFrame({"symbol": HIGH_LIQUIDITY_SEEDS})
+        else:
+            # Full listing scan - slower but more comprehensive
+            logger.info("Using full listing scan (lower filters)")
 
-        # Step 2: Apply basic filters from listings
-        df = self._apply_listing_filters(df)
+            # Step 1: Get all active stocks
+            df = self.listings_provider.get_active_stocks(
+                exchanges=self.exchanges,
+                use_cache=True,
+            )
 
-        logger.info("After listing filters: %d stocks", len(df))
+            logger.info("Fetched %d active stocks from listings", len(df))
+
+            # Step 2: Apply basic filters from listings
+            df = self._apply_listing_filters(df)
+
+            logger.info("After listing filters: %d stocks", len(df))
 
         # Step 3: Get market data for remaining stocks
         # (This is expensive, so we do it after initial filtering)
         df = self._enrich_with_market_data(df, date)
+
+        # Handle empty result from market data enrichment
+        if df.empty or "symbol" not in df.columns:
+            logger.warning(
+                "No stocks with valid market data found. "
+                "Try again later or use different filters."
+            )
+            return []
 
         logger.info("After enriching with market data: %d stocks", len(df))
 
@@ -137,6 +241,10 @@ class StaticUniverseSelector(UniverseSelector):
         df = self._apply_market_filters(df)
 
         logger.info("After market filters: %d stocks", len(df))
+
+        if df.empty:
+            logger.warning("No stocks passed market filters")
+            return []
 
         # Step 5: Rank stocks
         df = self._rank_stocks(df)
@@ -194,14 +302,18 @@ class StaticUniverseSelector(UniverseSelector):
         if self.exchanges:
             filtered = self.filter_by_exchange(filtered, self.exchanges)
 
-        # Filter out symbols with special characters that are likely problematic
-        # These are often warrants, preferred shares, etc.
-        # Keep only: letters, numbers, and single hyphen (not at start/end)
-        filtered = filtered[
-            filtered['symbol'].str.match(r'^[A-Z][A-Z0-9]*(-[A-Z0-9]+)?$')
-        ]
+        # Filter out warrants, units, rights, and other non-common-stock symbols
+        # using the is_valid_trading_symbol function
+        before_count = len(filtered)
+        filtered = filtered[filtered['symbol'].apply(is_valid_trading_symbol)]
+        after_count = len(filtered)
 
-        logger.debug(f"After filtering invalid symbols: {len(filtered)} stocks")
+        logger.info(
+            "Filtered out %d invalid symbols (warrants, units, rights), "
+            "%d stocks remaining",
+            before_count - after_count,
+            after_count
+        )
 
         return filtered
 
@@ -251,10 +363,11 @@ class StaticUniverseSelector(UniverseSelector):
             try:
                 cached_df = self.db.load_bars(symbol, start_date, end_date)
 
-                if not cached_df.empty and len(cached_df) >= 20:
+                # Need at least 10 days of data for reliable avg volume
+                if not cached_df.empty and len(cached_df) >= 10:
                     # Have enough cached data
                     latest_price = cached_df.iloc[-1]["close"]
-                    avg_volume = cached_df["volume"].tail(20).mean()
+                    avg_volume = cached_df["volume"].mean()  # Use all available data
 
                     market_data_list.append(
                         {
@@ -307,14 +420,20 @@ class StaticUniverseSelector(UniverseSelector):
 
                     # Process results
                     for symbol, symbol_df in price_data.items():
-                        if symbol_df.empty or len(symbol_df) < 20:
+                        # Need at least 10 days for reliable average
+                        if symbol_df.empty or len(symbol_df) < 10:
+                            logger.debug(
+                                "Skipping %s: only %d rows",
+                                symbol,
+                                len(symbol_df) if not symbol_df.empty else 0
+                            )
                             continue
 
                         # Get latest price
                         latest_price = symbol_df.iloc[-1]["close"]
 
-                        # Calculate average volume (last 20 days)
-                        avg_volume = symbol_df["volume"].tail(20).mean()
+                        # Calculate average volume (use all available data)
+                        avg_volume = symbol_df["volume"].mean()
 
                         market_data_list.append(
                             {
