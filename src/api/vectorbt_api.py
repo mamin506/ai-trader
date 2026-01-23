@@ -123,8 +123,23 @@ class VectorBTAPI:
             end_date,
         )
 
-        # Fetch data
-        price_data = self.data_api.get_daily_bars(symbol, start_date, end_date)
+        # Convert dates to datetime if needed
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        # Fetch data directly from provider to avoid DataAPI caching issues
+        # This is faster and more reliable for one-off backtests
+        try:
+            # Try DataAPI first (will use cache if available)
+            price_data = self.data_api.get_daily_bars(symbol, start_date, end_date)
+        except Exception as e:
+            logger.warning("DataAPI failed, falling back to direct provider: %s", e)
+            # Fall back to direct provider fetch
+            from src.data.providers.yfinance_provider import YFinanceProvider
+            provider = YFinanceProvider()
+            price_data = provider.get_historical_bars(symbol, start_date, end_date)
 
         # Generate signals
         signals = strategy.generate_signals(price_data)
@@ -185,8 +200,20 @@ class VectorBTAPI:
             self._count_combinations(param_grid),
         )
 
-        # Fetch data
-        price_data = self.data_api.get_daily_bars(symbol, start_date, end_date)
+        # Convert dates to datetime if needed
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        # Fetch data with fallback
+        try:
+            price_data = self.data_api.get_daily_bars(symbol, start_date, end_date)
+        except Exception as e:
+            logger.warning("DataAPI failed, falling back to direct provider: %s", e)
+            from src.data.providers.yfinance_provider import YFinanceProvider
+            provider = YFinanceProvider()
+            price_data = provider.get_historical_bars(symbol, start_date, end_date)
 
         # Define signal generator
         def generate_signals(params):

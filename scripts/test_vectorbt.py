@@ -25,10 +25,10 @@ def test_quick_backtest():
     api = VectorBTAPI()
     strategy = MACrossoverStrategy({"fast_period": 20, "slow_period": 50})
 
-    # Run quick backtest (use 2022 data for stability)
-    print("\nRunning VectorBT backtest on AAPL (2022)...")
+    # Run quick backtest (use 2024 Q1 data)
+    print("\nRunning VectorBT backtest on AAPL (2024 Q1)...")
     result = api.quick_backtest(
-        strategy=strategy, symbol="AAPL", start_date="2022-01-01", end_date="2022-12-31"
+        strategy=strategy, symbol="AAPL", start_date="2024-01-02", end_date="2024-03-29"
     )
 
     # Display results
@@ -65,13 +65,13 @@ def test_parameter_optimization():
     print(f"  fast_period: {param_grid['fast_period']}")
     print(f"  slow_period: {param_grid['slow_period']}")
 
-    # Run optimization (use 2022 data)
+    # Run optimization (use 2024 Q1 data)
     results = api.optimize_strategy(
         strategy_class=MACrossoverStrategy,
         symbol="AAPL",
         param_grid=param_grid,
-        start_date="2022-01-01",
-        end_date="2022-12-31",
+        start_date="2024-01-02",
+        end_date="2024-03-29",
         metric="sharpe_ratio",
         top_n=3,
     )
@@ -100,7 +100,7 @@ def test_batch_backtest():
     print(f"Symbols: {', '.join(symbols)}")
 
     results = api.batch_backtest(
-        strategy=strategy, symbols=symbols, start_date="2022-01-01", end_date="2022-12-31"
+        strategy=strategy, symbols=symbols, start_date="2024-01-02", end_date="2024-03-29"
     )
 
     # Sort by Sharpe ratio
