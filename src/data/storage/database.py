@@ -6,7 +6,7 @@ and data persistence.
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List
 import threading
@@ -81,7 +81,7 @@ class DatabaseManager:
         # Prepare DataFrame for insertion
         data = df.copy()
         data["symbol"] = symbol
-        data["updated_at"] = datetime.utcnow().isoformat()
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         # Ensure index is in specific column for to_sql
         if data.index.name == "date":
@@ -204,7 +204,7 @@ class DatabaseManager:
             return
 
         date_str = date.strftime("%Y-%m-%d")
-        created_at = datetime.utcnow().isoformat()
+        created_at = datetime.now(timezone.utc).isoformat()
 
         # Prepare records
         records = []
