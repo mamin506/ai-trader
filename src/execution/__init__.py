@@ -15,19 +15,28 @@ from src.execution.base import (
     Position,
     TimeInForce,
 )
+from src.execution.vectorbt_backtest import (
+    VectorBTBacktest,
+    VectorBTError,
+    VectorBTResult,
+)
 
 __all__ = [
     # Abstract interface
     "OrderExecutor",
     # Concrete implementations
     "BacktestExecutor",
+    "VectorBTBacktest",
     # Data classes
     "ExecutionOrder",
     "Fill",
     "Position",
     "AccountInfo",
+    "VectorBTResult",
     # Enums
     "OrderStatus",
     "OrderType",
     "TimeInForce",
+    # Exceptions
+    "VectorBTError",
 ]
