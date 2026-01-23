@@ -6,6 +6,7 @@ exploring market data. Designed for use in Jupyter notebooks and scripts.
 
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -39,7 +40,9 @@ class DataAPI:
         ... )
     """
 
-    def __init__(self, provider: DataProvider = None, db_path: str = None):
+    def __init__(
+        self, provider: Optional[DataProvider] = None, db_path: Optional[str] = None
+    ):
         """Initialize DataAPI.
 
         Args:
