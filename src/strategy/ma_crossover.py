@@ -133,7 +133,7 @@ class MACrossoverStrategy(Strategy):
         # Detect crossovers by comparing current and previous MA relationships
         # Fill NaN with False to avoid issues with boolean operations
         fast_above_slow = (data["fast_ma"] > data["slow_ma"]).fillna(False)
-        fast_above_slow_prev = fast_above_slow.shift(1).fillna(False)
+        fast_above_slow_prev = fast_above_slow.shift(1, fill_value=False)
 
         # Golden Cross: Fast MA crosses above Slow MA (bullish signal)
         golden_cross = fast_above_slow & (~fast_above_slow_prev)
