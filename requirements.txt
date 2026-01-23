@@ -17,3 +17,7 @@ exchange_calendars>=4.5
 
 # CLI
 click>=8.0.0
+
+# High-performance backtesting
+vectorbt>=0.26.0
+numba>=0.58.0

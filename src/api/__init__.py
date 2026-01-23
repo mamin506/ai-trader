@@ -17,6 +17,7 @@ from src.api.execution_api import ExecutionAPI
 from src.api.portfolio_api import PortfolioAPI
 from src.api.risk_api import RiskAPI
 from src.api.strategy_api import StrategyAPI
+from src.api.vectorbt_api import VectorBTAPI
 
 __all__ = [
     "DataAPI",
@@ -25,4 +26,5 @@ __all__ = [
     "RiskAPI",
     "ExecutionAPI",
     "BacktestAPI",
+    "VectorBTAPI",
 ]
