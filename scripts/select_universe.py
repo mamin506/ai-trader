@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Universe selection CLI tool.
 
-This script selects stocks for a trading universe based on filters like
-liquidity, price, and market cap.
+This script selects stocks for a trading universe from the seed list,
+applying filters like liquidity, price, and market cap.
 
 Examples:
     # Select top 50 liquid stocks
@@ -16,9 +16,6 @@ Examples:
 
     # Load saved universe
     python scripts/select_universe.py --load liquid_50
-
-    # Refresh stock listings cache
-    python scripts/select_universe.py --refresh-cache
 """
 
 import sys
@@ -36,11 +33,6 @@ from src.api.universe_api import UniverseAPI
 @click.option("--load", "load_name", help="Load saved universe by name")
 @click.option("--date", type=str, help="Selection date (YYYY-MM-DD)")
 @click.option("--top-n", type=int, default=100, help="Number of stocks to select")
-@click.option(
-    "--exchange",
-    multiple=True,
-    help="Exchanges to include (e.g., NASDAQ, NYSE)",
-)
 @click.option("--min-price", type=float, default=5.0, help="Minimum stock price")
 @click.option("--max-price", type=float, help="Maximum stock price")
 @click.option(
@@ -52,24 +44,24 @@ from src.api.universe_api import UniverseAPI
 @click.option("--min-market-cap", type=float, help="Minimum market cap")
 @click.option("--max-market-cap", type=float, help="Maximum market cap")
 @click.option("--save", is_flag=True, help="Save universe to database")
-@click.option("--refresh-cache", is_flag=True, help="Refresh stock listings cache")
 def main(
     name,
     load_name,
     date,
     top_n,
-    exchange,
     min_price,
     max_price,
     min_volume,
     min_market_cap,
     max_market_cap,
     save,
-    refresh_cache,
 ):
-    """Select stocks for a trading universe.
+    """Select stocks for a trading universe from seed list.
 
-    By default, selects top N stocks from NASDAQ and NYSE based on liquidity.
+    The universe is selected from the seed list (data/seed_list.json) and
+    filtered based on liquidity, price, and market cap criteria.
+
+    To update the seed list, run: python scripts/update_seed_list.py
 
     Examples:
 
@@ -84,19 +76,8 @@ def main(
         \b
         # Load saved universe
         python scripts/select_universe.py --load liquid_50
-
-        \b
-        # Refresh listings cache
-        python scripts/select_universe.py --refresh-cache
     """
     api = UniverseAPI()
-
-    # Refresh cache if requested
-    if refresh_cache:
-        click.echo("Refreshing stock listings cache...")
-        count = api.refresh_listings_cache()
-        click.echo(f"✓ Fetched {count} stock listings from AlphaVantage")
-        return
 
     # Load universe if requested
     if load_name:
@@ -115,7 +96,7 @@ def main(
 
     # Select universe
     click.echo("=" * 70)
-    click.echo("UNIVERSE SELECTION")
+    click.echo("UNIVERSE SELECTION FROM SEED LIST")
     click.echo("=" * 70)
     click.echo(f"Name:            {name}")
     click.echo(f"Top N:           {top_n}")
@@ -123,23 +104,22 @@ def main(
     if max_price:
         click.echo(f"Max Price:       ${max_price:.2f}")
     click.echo(f"Min Volume:      {min_volume:,.0f} shares/day")
-    if exchange:
-        click.echo(f"Exchanges:       {', '.join(exchange)}")
-    else:
-        click.echo(f"Exchanges:       NASDAQ, NYSE, NYSE ARCA (default)")
+    if min_market_cap:
+        click.echo(f"Min Market Cap:  ${min_market_cap:,.0f}")
+    if max_market_cap:
+        click.echo(f"Max Market Cap:  ${max_market_cap:,.0f}")
     click.echo("=" * 70)
     click.echo()
 
     try:
-        click.echo("Selecting universe...")
-
-        exchanges = list(exchange) if exchange else None
+        click.echo("Selecting universe from seed list...")
+        click.echo("(Seed list: data/seed_list.json)")
+        click.echo()
 
         symbols = api.select_universe(
             name=name,
             date=date,
             top_n=top_n,
-            exchanges=exchanges,
             min_price=min_price,
             max_price=max_price,
             min_avg_volume=min_volume,
@@ -172,6 +152,12 @@ def main(
             else:
                 click.echo(f"  Date: {datetime.now().strftime('%Y-%m-%d')}")
 
+    except FileNotFoundError as e:
+        click.echo(f"✗ Error: Seed list not found")
+        click.echo()
+        click.echo("Please create the seed list first:")
+        click.echo("  python scripts/update_seed_list.py")
+        sys.exit(1)
     except Exception as e:
         click.echo(f"✗ Error: {e}")
         import traceback

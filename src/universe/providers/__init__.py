@@ -1,10 +1,7 @@
 """Universe data providers.
 
-This module contains providers for fetching stock listings from various sources.
+This module is reserved for future providers (e.g., Finviz, FMP, etc.).
+Currently, the universe selector uses seed lists loaded from data/seed_list.json.
 """
 
-from src.universe.providers.alphavantage import AlphaVantageProvider
-
-__all__ = [
-    "AlphaVantageProvider",
-]
+__all__ = []

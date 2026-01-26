@@ -1,0 +1,13 @@
+[
+  {
+    "key": "z",
+    "command": "-extension.vim_z",
+    "when": "inChat || (editorTextFocus && activeEditor == 'workbench.panel.chat')"
+  },
+  {
+    "key": "z",
+    "command": "type",
+    "args": { "text": "z" },
+    "when": "inChat || (editorTextFocus && activeEditor == 'workbench.panel.chat')"
+  }
+]

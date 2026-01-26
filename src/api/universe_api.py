@@ -69,7 +69,6 @@ class UniverseAPI:
         date: Optional[Union[str, datetime]] = None,
         top_n: int = 100,
         # Filter parameters
-        exchanges: Optional[list[str]] = None,
         min_price: float = 5.0,
         max_price: Optional[float] = None,
         min_avg_volume: float = 1_000_000,
@@ -84,7 +83,6 @@ class UniverseAPI:
             name: Universe name (for saving/loading)
             date: Selection date (default: today)
             top_n: Maximum number of stocks to select
-            exchanges: List of exchanges (default: ['NASDAQ', 'NYSE', 'NYSE ARCA'])
             min_price: Minimum stock price (default: $5)
             max_price: Maximum stock price (optional)
             min_avg_volume: Minimum average daily volume (default: 1M shares)
@@ -113,8 +111,6 @@ class UniverseAPI:
 
         # Create selector
         selector = StaticUniverseSelector(
-            cache_dir=self.cache_dir,
-            exchanges=exchanges,
             min_price=min_price,
             max_price=max_price,
             min_avg_volume=min_avg_volume,
@@ -209,24 +205,3 @@ class UniverseAPI:
         """
         return self.db.get_universe_dates(name)
 
-    def refresh_listings_cache(self) -> int:
-        """Refresh the cached stock listings from AlphaVantage.
-
-        Returns:
-            Number of listings fetched
-
-        Example:
-            >>> api = UniverseAPI()
-            >>> count = api.refresh_listings_cache()
-            >>> print(f"Fetched {count} stock listings")
-        """
-        from src.universe.providers.alphavantage import AlphaVantageProvider
-
-        provider = AlphaVantageProvider(cache_dir=self.cache_dir)
-
-        # Force refresh (ignore cache)
-        df = provider.fetch_listings(use_cache=False)
-
-        logger.info(f"Refreshed listings cache with {len(df)} listings")
-
-        return len(df)
