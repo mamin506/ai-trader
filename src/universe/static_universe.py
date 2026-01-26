@@ -1,13 +1,15 @@
-"""Static universe selector using pre-downloaded stock lists.
+"""Static universe selector using seed list.
 
-This module implements a universe selector that uses static stock listings
-from AlphaVantage, applies filters, and ranks stocks to create a focused
-trading universe.
+This module implements a universe selector that starts from a curated seed list
+of stocks, applies filters, and ranks stocks to create a focused trading universe.
+
+The seed list is stored in data/seed_list.json and should be updated biweekly
+using Finviz screener.
 """
 
+import json
 import logging
-import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -16,106 +18,102 @@ import pandas as pd
 from src.api.data_api import DataAPI
 from src.data.providers.yfinance_provider import YFinanceProvider
 from src.data.storage.database import DatabaseManager
-from src.universe.providers.alphavantage import AlphaVantageProvider
 from src.universe.universe_selector import UniverseSelector
-from src.utils.exceptions import DataProviderError
 
 logger = logging.getLogger(__name__)
 
 
-# Pre-defined list of known high-liquidity US stocks
-# These are commonly traded large-cap stocks that are always active
-# Used as a seed list when high filters are applied
-# Note: This list should be periodically reviewed and updated
-# Removed delisted/merged: SQ->BLOCK, ATVI (merged with MSFT), PXD (merged with XOM), PARA, U
-HIGH_LIQUIDITY_SEEDS = [
-    # Tech Giants
-    "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "NVDA", "TSLA",
-    # Semiconductors
-    "AMD", "INTC", "AVGO", "QCOM", "MU", "AMAT", "LRCX", "KLAC", "MRVL", "ON",
-    # Software/Cloud
-    "CRM", "ORCL", "ADBE", "NOW", "SNOW", "PLTR", "PANW", "CRWD", "ZS", "DDOG",
-    # Other Tech
-    "NFLX", "PYPL", "SHOP", "UBER", "ABNB", "DASH", "COIN", "RBLX", "NET", "MDB",
-    # Finance
-    "JPM", "BAC", "WFC", "C", "GS", "MS", "BLK", "SCHW", "AXP", "V", "MA",
-    # Healthcare
-    "JNJ", "UNH", "PFE", "ABBV", "MRK", "LLY", "TMO", "ABT", "BMY", "GILD",
-    # Consumer
-    "WMT", "COST", "HD", "TGT", "LOW", "NKE", "SBUX", "MCD", "KO", "PEP",
-    # Industrial
-    "CAT", "DE", "BA", "GE", "HON", "MMM", "UPS", "FDX", "LMT", "RTX",
-    # Energy
-    "XOM", "CVX", "COP", "SLB", "OXY", "MPC", "VLO", "PSX", "EOG", "DVN",
-    # Communication
-    "DIS", "CMCSA", "T", "VZ", "TMUS", "CHTR", "EA", "TTWO", "WBD", "NWSA",
-    # ETFs
-    "SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "XLF", "XLK", "XLE", "XLV",
-]
-
-
-def is_valid_trading_symbol(symbol: str) -> bool:
-    """Check if a symbol is a valid tradeable stock (not warrant, unit, etc.).
+def load_seed_list(seed_file: Optional[Path] = None) -> list[str]:
+    """Load seed list from JSON file.
 
     Args:
-        symbol: Stock ticker symbol
+        seed_file: Path to seed list JSON file (default: data/seed_list.json)
 
     Returns:
-        True if symbol is likely a regular stock, False otherwise
+        List of stock symbols
 
-    Rules:
-        - Class shares: SYMBOL-A or SYMBOL-B (like BRK-A, BRK-B) are valid
-        - Any other hyphenated symbol is likely warrant/unit/rights - invalid
-        - 1-4 letter symbols are always valid (AAPL, MSFT, etc.)
-        - 5-letter symbols ending in W, U, R are likely warrants/units/rights - invalid
-        - Other 5-letter symbols are valid (GOOGL, NVDA, etc.)
+    Raises:
+        FileNotFoundError: If seed file doesn't exist
+        ValueError: If seed file is invalid
     """
-    if not symbol or not isinstance(symbol, str):
-        return False
+    if seed_file is None:
+        seed_file = Path("data/seed_list.json")
 
-    # Class shares: SYMBOL-A or SYMBOL-B (like BRK-A, BRK-B)
-    if re.match(r'^[A-Z]{1,4}-[AB]$', symbol):
-        return True
+    if not seed_file.exists():
+        raise FileNotFoundError(
+            f"Seed list file not found: {seed_file}\n"
+            "Please create the seed list file or run the screener to generate it."
+        )
 
-    # Any other hyphenated symbol is likely warrant/unit
-    if '-' in symbol:
-        return False
+    try:
+        with open(seed_file, "r") as f:
+            data = json.load(f)
 
-    # Simple symbols: 1-4 uppercase letters (always valid)
-    if re.match(r'^[A-Z]{1,4}$', symbol):
-        return True
+        if "seeds" not in data:
+            raise ValueError("Seed list file must contain 'seeds' key")
 
-    # 5-letter symbols: exclude those ending in W, U, R (warrants, units, rights)
-    if re.match(r'^[A-Z]{5}$', symbol):
-        if symbol[-1] in ('W', 'U', 'R'):
-            return False
-        return True
+        symbols = data["seeds"]
+        logger.info("Loaded %d symbols from seed list", len(symbols))
 
-    return False
+        return symbols
+
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in seed list file: {e}") from e
+
+
+def save_seed_list(
+    symbols: list[str],
+    seed_file: Optional[Path] = None,
+    metadata: Optional[dict] = None,
+) -> None:
+    """Save seed list to JSON file.
+
+    Args:
+        symbols: List of stock symbols
+        seed_file: Path to seed list JSON file (default: data/seed_list.json)
+        metadata: Optional metadata dict to include
+    """
+    if seed_file is None:
+        seed_file = Path("data/seed_list.json")
+
+    seed_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Prepare metadata
+    if metadata is None:
+        metadata = {}
+
+    metadata.update(
+        {
+            "last_updated": datetime.now().strftime("%Y-%m-%d"),
+            "total_count": len(symbols),
+        }
+    )
+
+    data = {"metadata": metadata, "seeds": sorted(symbols)}
+
+    with open(seed_file, "w") as f:
+        json.dump(data, f, indent=2)
+
+    logger.info("Saved %d symbols to seed list", len(symbols))
 
 
 class StaticUniverseSelector(UniverseSelector):
-    """Static universe selector using AlphaVantage listings.
+    """Static universe selector using seed list.
 
     This selector:
-    1. Fetches all US stocks from AlphaVantage (cached daily)
-    2. Applies filters (exchange, liquidity, price, market cap)
+    1. Loads stocks from seed list (data/seed_list.json)
+    2. Applies filters (liquidity, price, market cap)
     3. Ranks stocks by a scoring method
     4. Returns top N stocks
 
-    For Phase 1.5, we use static filtering. Future phases can add:
-    - Momentum ranking
-    - Fundamental factors
-    - Technical indicators
-    - Machine learning scores
+    The seed list should be updated biweekly using Finviz screener.
     """
 
     def __init__(
         self,
-        cache_dir: Optional[Path] = None,
+        seed_file: Optional[Path] = None,
         data_api: Optional[DataAPI] = None,
         # Filter parameters
-        exchanges: Optional[list[str]] = None,
         min_price: float = 5.0,
         max_price: Optional[float] = None,
         min_avg_volume: float = 1_000_000,
@@ -125,24 +123,15 @@ class StaticUniverseSelector(UniverseSelector):
         """Initialize static universe selector.
 
         Args:
-            cache_dir: Directory for caching listings
+            seed_file: Path to seed list JSON file (default: data/seed_list.json)
             data_api: DataAPI for price/volume data
-            exchanges: List of exchanges (default: ['NASDAQ', 'NYSE'])
             min_price: Minimum stock price (default: $5)
             max_price: Maximum stock price (optional)
             min_avg_volume: Minimum avg daily volume (default: 1M shares)
             min_market_cap: Minimum market cap (optional)
             max_market_cap: Maximum market cap (optional)
         """
-        # Default cache directory
-        if cache_dir is None:
-            cache_dir = Path("data/universe")
-
-        self.cache_dir = cache_dir
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize providers
-        self.listings_provider = AlphaVantageProvider(cache_dir=cache_dir)
+        self.seed_file = seed_file or Path("data/seed_list.json")
         self.data_api = data_api or DataAPI()
         self.yf_provider = YFinanceProvider()
 
@@ -151,7 +140,6 @@ class StaticUniverseSelector(UniverseSelector):
         self.db = DatabaseManager(db_path)
 
         # Filter parameters
-        self.exchanges = exchanges or ["NASDAQ", "NYSE", "NYSE ARCA"]
         self.min_price = min_price
         self.max_price = max_price
         self.min_avg_volume = min_avg_volume
@@ -164,21 +152,18 @@ class StaticUniverseSelector(UniverseSelector):
         self,
         date: Optional[datetime] = None,
         top_n: int = 100,
-        use_seed_list: Optional[bool] = None,
     ) -> list[str]:
         """Select stocks for the universe.
 
         Args:
             date: Date for selection (currently not used in Phase 1.5)
             top_n: Maximum number of stocks to select
-            use_seed_list: If True, start from pre-defined high-liquidity seeds.
-                          If None (default), auto-detect based on filters.
 
         Returns:
             List of stock symbols
 
         Raises:
-            DataProviderError: If data fetching fails
+            FileNotFoundError: If seed list file doesn't exist
         """
         if date is None:
             date = datetime.now()
@@ -189,42 +174,13 @@ class StaticUniverseSelector(UniverseSelector):
             top_n,
         )
 
-        # Auto-detect if we should use seed list
-        # Use seeds when high filters are set (reduces API calls significantly)
-        if use_seed_list is None:
-            use_seed_list = (
-                self.min_avg_volume >= 5_000_000 or  # High volume filter
-                self.min_price >= 50.0 or            # High price filter
-                top_n <= 50                          # Small selection
-            )
+        # Step 1: Load seed list
+        symbols = load_seed_list(self.seed_file)
+        df = pd.DataFrame({"symbol": symbols})
 
-        if use_seed_list:
-            logger.info(
-                "Using seed list (high filters detected: min_vol=%s, min_price=%s)",
-                f"{self.min_avg_volume:,.0f}",
-                f"${self.min_price:.2f}",
-            )
-            # Start from seed list - much faster
-            df = pd.DataFrame({"symbol": HIGH_LIQUIDITY_SEEDS})
-        else:
-            # Full listing scan - slower but more comprehensive
-            logger.info("Using full listing scan (lower filters)")
+        logger.info("Loaded %d stocks from seed list", len(df))
 
-            # Step 1: Get all active stocks
-            df = self.listings_provider.get_active_stocks(
-                exchanges=self.exchanges,
-                use_cache=True,
-            )
-
-            logger.info("Fetched %d active stocks from listings", len(df))
-
-            # Step 2: Apply basic filters from listings
-            df = self._apply_listing_filters(df)
-
-            logger.info("After listing filters: %d stocks", len(df))
-
-        # Step 3: Get market data for remaining stocks
-        # (This is expensive, so we do it after initial filtering)
+        # Step 2: Get market data for symbols
         df = self._enrich_with_market_data(df, date)
 
         # Handle empty result from market data enrichment
@@ -237,7 +193,7 @@ class StaticUniverseSelector(UniverseSelector):
 
         logger.info("After enriching with market data: %d stocks", len(df))
 
-        # Step 4: Apply market data filters
+        # Step 3: Apply market data filters
         df = self._apply_market_filters(df)
 
         logger.info("After market filters: %d stocks", len(df))
@@ -246,10 +202,10 @@ class StaticUniverseSelector(UniverseSelector):
             logger.warning("No stocks passed market filters")
             return []
 
-        # Step 5: Rank stocks
+        # Step 4: Rank stocks
         df = self._rank_stocks(df)
 
-        # Step 6: Select top N
+        # Step 5: Select top N
         df = df.head(top_n)
 
         symbols = df["symbol"].tolist()
@@ -278,49 +234,18 @@ class StaticUniverseSelector(UniverseSelector):
         if date is None:
             date = datetime.now()
 
-        # Get listings data
-        all_listings = self.listings_provider.fetch_listings(use_cache=True)
-        df = all_listings[all_listings["symbol"].isin(symbols)].copy()
+        # Create dataframe from symbols
+        df = pd.DataFrame({"symbol": symbols})
 
         # Enrich with market data
         df = self._enrich_with_market_data(df, date)
 
         return df
 
-    def _apply_listing_filters(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply filters based on listing data only.
-
-        Args:
-            df: DataFrame with listing data
-
-        Returns:
-            Filtered DataFrame
-        """
-        filtered = df.copy()
-
-        # Filter by exchange (already done in get_active_stocks, but double-check)
-        if self.exchanges:
-            filtered = self.filter_by_exchange(filtered, self.exchanges)
-
-        # Filter out warrants, units, rights, and other non-common-stock symbols
-        # using the is_valid_trading_symbol function
-        before_count = len(filtered)
-        filtered = filtered[filtered['symbol'].apply(is_valid_trading_symbol)]
-        after_count = len(filtered)
-
-        logger.info(
-            "Filtered out %d invalid symbols (warrants, units, rights), "
-            "%d stocks remaining",
-            before_count - after_count,
-            after_count
-        )
-
-        return filtered
-
     def _enrich_with_market_data(
         self, df: pd.DataFrame, date: datetime
     ) -> pd.DataFrame:
-        """Enrich listings with market data (price, volume, market cap).
+        """Enrich symbols with market data (price, volume, market cap).
 
         Uses caching and batch fetching to minimize API calls and avoid
         rate limiting.
@@ -337,8 +262,6 @@ class StaticUniverseSelector(UniverseSelector):
         Returns:
             DataFrame enriched with market data columns
         """
-        from datetime import timedelta
-
         symbols = df["symbol"].tolist()
 
         if not symbols:
@@ -367,7 +290,7 @@ class StaticUniverseSelector(UniverseSelector):
                 if not cached_df.empty and len(cached_df) >= 10:
                     # Have enough cached data
                     latest_price = cached_df.iloc[-1]["close"]
-                    avg_volume = cached_df["volume"].mean()  # Use all available data
+                    avg_volume = cached_df["volume"].mean()
 
                     market_data_list.append(
                         {
@@ -401,7 +324,7 @@ class StaticUniverseSelector(UniverseSelector):
             batch_size = 20
 
             for i in range(0, len(symbols_to_fetch), batch_size):
-                batch_symbols = symbols_to_fetch[i: i + batch_size]
+                batch_symbols = symbols_to_fetch[i : i + batch_size]
 
                 logger.info(
                     "Fetching batch %d/%d (%d symbols)...",
@@ -425,7 +348,7 @@ class StaticUniverseSelector(UniverseSelector):
                             logger.debug(
                                 "Skipping %s: only %d rows",
                                 symbol,
-                                len(symbol_df) if not symbol_df.empty else 0
+                                len(symbol_df) if not symbol_df.empty else 0,
                             )
                             continue
 
@@ -467,7 +390,7 @@ class StaticUniverseSelector(UniverseSelector):
                     time.sleep(5)
                     continue
 
-        # Merge market data with listings
+        # Merge market data with symbols
         if market_data_list:
             market_df = pd.DataFrame(market_data_list)
             df = df.merge(market_df, on="symbol", how="inner")
