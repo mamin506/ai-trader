@@ -21,3 +21,10 @@ click>=8.0.0
 # High-performance backtesting
 vectorbt>=0.26.0
 numba>=0.58.0
+
+# Phase 2: Paper Trading
+alpaca-py>=0.9.0        # Alpaca Trading API SDK
+APScheduler>=3.10.0     # Task scheduling
+python-dotenv>=1.0.0    # Environment variable loading
+rich>=13.0.0            # Enhanced CLI output (colors, tables)
+pytz>=2024.0            # Timezone support (alpaca-py dependency)

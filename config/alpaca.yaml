@@ -1,0 +1,96 @@
+# Alpaca Paper Trading Configuration
+# This file contains non-sensitive Alpaca configuration
+# Sensitive data (API keys) are stored in .env file
+
+alpaca:
+  # Trading mode
+  mode: paper  # paper or live (NEVER change to live without validation!)
+
+  # Trading enabled flag
+  trading_enabled: true
+
+  # Market schedule (all times in US/Eastern timezone)
+  schedule:
+    # Market hours
+    market_open: "09:30"
+    market_close: "16:00"
+
+    # Daily workflow times
+    pre_market_check: "09:00"  # Health check before market opens
+    rebalance_time: "15:45"     # Daily rebalancing (15 min before close)
+    post_market_report: "16:15" # Daily performance report
+
+  # Risk monitoring configuration
+  risk_monitoring:
+    enabled: true
+    check_interval_minutes: 5  # Check positions every 5 minutes
+
+    # Risk thresholds
+    stop_loss_pct: 0.03        # 3% stop-loss per position
+    take_profit_pct: 0.10      # 10% take-profit per position
+    trailing_stop_pct: 0.05    # 5% trailing stop (optional)
+
+    # Portfolio-level risk
+    daily_loss_limit: 0.02     # 2% max loss per day
+    max_drawdown: 0.05         # 5% max drawdown from peak
+    max_total_exposure: 0.95   # 95% max portfolio allocation
+
+  # Order execution configuration
+  execution:
+    order_type: market         # market or limit
+    time_in_force: day         # day or gtc (good-til-canceled)
+    fractional_shares: false   # Use fractional shares (if supported)
+
+    # Dry-run mode (for testing without real orders)
+    dry_run: false             # Set to true to simulate orders without submitting
+
+  # API rate limiting (Alpaca limits)
+  rate_limits:
+    max_requests_per_minute: 200
+    max_orders_per_minute: 60
+    retry_attempts: 3
+    retry_delay_seconds: 2
+
+  # Data provider settings
+  data:
+    # Use Alpaca for real-time data or fallback to yfinance
+    use_alpaca_data: true
+    fallback_to_yfinance: true
+
+    # Data cache settings
+    cache_enabled: true
+    cache_ttl_seconds: 300  # 5 minutes cache for intraday quotes
+
+# Strategy configuration (can be overridden per strategy)
+strategy:
+  # MA Crossover defaults (from Phase 1)
+  ma_crossover:
+    fast_period: 50
+    slow_period: 200
+    min_signal_threshold: 0.0
+
+# Portfolio configuration
+portfolio:
+  initial_capital: 100000  # $100k paper trading capital
+  max_positions: 10
+  min_position_size: 0.02  # 2% min per position
+  max_position_size: 0.20  # 20% max per position
+  cash_buffer: 0.05        # 5% cash reserve
+
+# Logging configuration
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_trades: true
+  log_risk_events: true
+  log_api_calls: false  # Set to true for debugging API issues
+
+# Monitoring and alerts
+monitoring:
+  # CLI monitoring settings
+  auto_refresh_interval: 10  # seconds (for watch mode)
+  show_colors: true
+
+  # Alert thresholds (future: email/SMS alerts)
+  alert_on_stop_loss: true
+  alert_on_circuit_breaker: true
+  alert_on_execution_failure: true
