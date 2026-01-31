@@ -5,6 +5,7 @@ paper trading, and live trading modes.
 """
 
 from src.execution.backtest_executor import BacktestExecutor
+from src.execution.alpaca_executor import AlpacaExecutor
 from src.execution.base import (
     AccountInfo,
     ExecutionOrder,
@@ -26,6 +27,7 @@ __all__ = [
     "OrderExecutor",
     # Concrete implementations
     "BacktestExecutor",
+    "AlpacaExecutor",
     "VectorBTBacktest",
     # Data classes
     "ExecutionOrder",
