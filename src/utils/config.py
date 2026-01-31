@@ -3,10 +3,12 @@
 This module provides simple YAML configuration loading and access.
 """
 
+import os
 from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
 
 
 class Config:
@@ -124,3 +126,67 @@ def load_config(filepath: str | Path = None) -> Config:
         root_dir = Path(__file__).parent.parent.parent
         filepath = root_dir / "config" / "default.yaml"
     return Config.from_file(filepath)
+
+
+def load_alpaca_config(config_file: str | Path = None) -> tuple[Config, dict[str, str]]:
+    """Load Alpaca configuration from YAML and environment variables.
+
+    This function loads both the alpaca.yaml config file and the .env file
+    containing API credentials. It's designed for Phase 2 paper trading.
+
+    Args:
+        config_file: Path to alpaca.yaml file. If None, uses default path.
+
+    Returns:
+        Tuple of (Config object, credentials dict)
+        where credentials dict contains:
+            - api_key: Alpaca API key
+            - secret_key: Alpaca secret key
+            - base_url: Alpaca API base URL
+            - data_url: Alpaca data API URL
+
+    Raises:
+        FileNotFoundError: If config file or .env not found
+        ValueError: If required environment variables are missing
+
+    Example:
+        >>> config, creds = load_alpaca_config()
+        >>> stop_loss = config.get("alpaca.risk_monitoring.stop_loss_pct")
+        >>> api_key = creds["api_key"]
+    """
+    # Load environment variables from .env file
+    root_dir = Path(__file__).parent.parent.parent
+    env_file = root_dir / ".env"
+
+    if not env_file.exists():
+        raise FileNotFoundError(
+            f".env file not found at {env_file}. "
+            "Please copy .env.example to .env and fill in your credentials."
+        )
+
+    load_dotenv(env_file)
+
+    # Load Alpaca YAML configuration
+    if config_file is None:
+        config_file = root_dir / "config" / "alpaca.yaml"
+
+    config = Config.from_file(config_file)
+
+    # Extract credentials from environment variables
+    required_vars = ["ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_BASE_URL", "ALPACA_DATA_URL"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+    if missing_vars:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing_vars)}. "
+            "Please check your .env file."
+        )
+
+    credentials = {
+        "api_key": os.getenv("ALPACA_API_KEY"),
+        "secret_key": os.getenv("ALPACA_SECRET_KEY"),
+        "base_url": os.getenv("ALPACA_BASE_URL"),
+        "data_url": os.getenv("ALPACA_DATA_URL"),
+    }
+
+    return config, credentials
