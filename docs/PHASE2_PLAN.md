@@ -299,6 +299,9 @@ Phase 2 is complete when:
 ### Agent A: Integration Specialist
 **Focus**: External system integration and workflow orchestration
 
+**Workspace**: `/home/ubuntu/ai-trader_agent_a/`
+**Branch**: `agent-a/scheduler`
+
 **Responsibilities**:
 1. **Week 1-2**: Module 1 (Alpaca Integration)
    - Implement AlpacaProvider
@@ -314,9 +317,12 @@ Phase 2 is complete when:
    - End-to-end testing with Agent B's modules
    - Bug fixes and refinements
 
-**Git Branches**:
-- `phase2/agent-a/alpaca-integration`
-- `phase2/agent-a/scheduler`
+**Development Flow**:
+```bash
+cd /home/ubuntu/ai-trader_agent_a    # Work in isolated directory
+git add . && git commit -m "..."     # Commit changes
+git push origin agent-a/scheduler    # Push to remote
+```
 
 **Merge Target**: `phase2/dev` (integration branch)
 
@@ -325,12 +331,15 @@ Phase 2 is complete when:
 ### Agent B: Core Logic Specialist
 **Focus**: Internal logic enhancement and developer tools
 
+**Workspace**: `/home/ubuntu/ai-trader_agent_b/`
+**Branch**: `agent-b/monitering`
+
 **Responsibilities**:
 1. **Week 1**: Module 0 (Configuration Setup)
-   - Create `config/alpaca.yaml`
-   - Create `.env.example`
-   - Update `requirements.txt`
-   - Update config loader
+   - Create `config/alpaca.yaml` ✅ (already done)
+   - Create `.env.example` ✅ (already done)
+   - Update `requirements.txt` ✅ (already done)
+   - Update config loader ⬅️ (next task)
 
 2. **Week 2-3**: Module 3 (Dynamic Risk Management)
    - Implement DynamicRiskManager
@@ -346,10 +355,12 @@ Phase 2 is complete when:
    - End-to-end testing with Agent A's modules
    - Documentation updates
 
-**Git Branches**:
-- `phase2/agent-b/config-setup`
-- `phase2/agent-b/dynamic-risk`
-- `phase2/agent-b/monitoring`
+**Development Flow**:
+```bash
+cd /home/ubuntu/ai-trader_agent_b     # Work in isolated directory
+git add . && git commit -m "..."      # Commit changes
+git push origin agent-b/monitering    # Push to remote
+```
 
 **Merge Target**: `phase2/dev` (integration branch)
 
@@ -599,60 +610,130 @@ alpaca:
 
 ## Git Workflow
 
+### Git Worktree Setup (✅ Implemented)
+
+**Multi-Agent Development Environment**: Using Git worktree for isolated workspaces
+
+```
+Repository Structure (git worktree list):
+┌─────────────────────────────────────────────────────────────┐
+│ /workspaces/ai-trader        [main]                         │  ← Main workspace
+│ /home/ubuntu/ai-trader_agent_a  [agent-a/scheduler]        │  ← Agent A
+│ /home/ubuntu/ai-trader_agent_b  [agent-b/monitering]       │  ← Agent B
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Benefits**:
+- ✅ **Zero Conflicts**: Each agent has isolated working directory
+- ✅ **Shared Repository**: All worktrees share same `.git` (instant sync)
+- ✅ **Parallel Work**: Agents can commit/push independently
+- ✅ **Easy Integration**: Merge to `phase2/dev` when ready
+
+**Agent Workspaces**:
+- **Agent A**: `/home/ubuntu/ai-trader_agent_a/` → Branch: `agent-a/scheduler`
+- **Agent B**: `/home/ubuntu/ai-trader_agent_b/` → Branch: `agent-b/monitering`
+
 ### Branch Structure
 ```
 main (protected - production-ready code)
- └─ phase2/dev (integration branch - for Phase 2 development)
-     ├─ phase2/agent-a/alpaca-integration
-     ├─ phase2/agent-a/scheduler
-     ├─ phase2/agent-b/config-setup
-     ├─ phase2/agent-b/dynamic-risk
-     └─ phase2/agent-b/monitoring
+ │
+ ├─ phase2/dev (integration branch)
+ │   ├─ Merges from agent-a/* branches
+ │   └─ Merges from agent-b/* branches
+ │
+ ├─ agent-a/scheduler (Agent A's feature branch)
+ │   └─ Module 1: Alpaca Integration
+ │   └─ Module 2: APScheduler & Workflows
+ │
+ └─ agent-b/monitering (Agent B's feature branch)
+     └─ Module 0: Configuration Setup
+     └─ Module 3: Dynamic Risk Management
+     └─ Module 4: Monitoring & CLI Tools
 ```
 
 ### Workflow Steps
 
-1. **Feature Development**:
-   ```bash
-   # Agent A creates feature branch from phase2/dev
-   git checkout phase2/dev
-   git pull origin phase2/dev
-   git checkout -b phase2/agent-a/alpaca-integration
+#### Agent A Development Flow
 
-   # Work on feature...
-   git add .
-   git commit -m "feat(alpaca): implement AlpacaProvider with REST API"
-   git push origin phase2/agent-a/alpaca-integration
-   ```
+**Location**: `/home/ubuntu/ai-trader_agent_a/`
+**Branch**: `agent-a/scheduler`
 
-2. **Merge to Integration Branch**:
-   ```bash
-   # Create PR: phase2/agent-a/alpaca-integration → phase2/dev
-   # After review (can be reviewed by Agent B or user)
-   git checkout phase2/dev
-   git merge phase2/agent-a/alpaca-integration
-   git push origin phase2/dev
-   ```
+```bash
+# 1. Agent A works in their isolated directory
+cd /home/ubuntu/ai-trader_agent_a
 
-3. **Sync Between Agents**:
-   ```bash
-   # Agent B pulls latest changes from phase2/dev
-   git checkout phase2/dev
-   git pull origin phase2/dev
+# 2. Make changes (implement Alpaca integration, scheduler, etc.)
+# ... edit files ...
 
-   # Rebase feature branch if needed
-   git checkout phase2/agent-b/dynamic-risk
-   git rebase phase2/dev
-   ```
+# 3. Commit frequently
+git add .
+git commit -m "feat(alpaca): implement AlpacaProvider with REST API"
 
-4. **Merge to Main** (end of Phase 2):
-   ```bash
-   # After all modules complete and tested
-   git checkout main
-   git merge phase2/dev
-   git push origin main
-   git tag v0.2.0-phase2-complete
-   ```
+# 4. Push to remote
+git push origin agent-a/scheduler
+
+# 5. When ready to integrate, switch to main workspace
+cd /workspaces/ai-trader
+
+# 6. Merge to integration branch
+git checkout phase2/dev
+git merge agent-a/scheduler --no-ff -m "integrate: Agent A - Alpaca integration and scheduler"
+git push origin phase2/dev
+```
+
+#### Agent B Development Flow
+
+**Location**: `/home/ubuntu/ai-trader_agent_b/`
+**Branch**: `agent-b/monitering`
+
+```bash
+# 1. Agent B works in their isolated directory
+cd /home/ubuntu/ai-trader_agent_b
+
+# 2. Make changes (config, risk management, monitoring)
+# ... edit files ...
+
+# 3. Commit frequently
+git add .
+git commit -m "feat(risk): implement DynamicRiskManager with stop-loss"
+
+# 4. Push to remote
+git push origin agent-b/monitering
+
+# 5. When ready to integrate, switch to main workspace
+cd /workspaces/ai-trader
+
+# 6. Merge to integration branch
+git checkout phase2/dev
+git merge agent-b/monitering --no-ff -m "integrate: Agent B - risk management and monitoring"
+git push origin phase2/dev
+```
+
+#### Synchronization Between Agents
+
+```bash
+# Agent A syncs latest changes from phase2/dev
+cd /home/ubuntu/ai-trader_agent_a
+git fetch origin
+git merge origin/phase2/dev -m "sync: merge latest from phase2/dev"
+
+# Agent B syncs latest changes from phase2/dev
+cd /home/ubuntu/ai-trader_agent_b
+git fetch origin
+git merge origin/phase2/dev -m "sync: merge latest from phase2/dev"
+```
+
+#### Final Integration to Main
+
+```bash
+# After all modules complete and tested
+cd /workspaces/ai-trader
+git checkout main
+git merge phase2/dev --no-ff -m "feat(phase2): complete Paper Trading implementation"
+git push origin main
+git tag v0.2.0-phase2-complete
+git push origin v0.2.0-phase2-complete
+```
 
 ### Commit Message Convention
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
@@ -830,20 +911,58 @@ pip install -r requirements.txt
 
 ### Daily Progress Log
 
-#### 2026-01-31
-**Agent B**:
-- [x] User created `.env` with Alpaca credentials
-- [ ] Created `config/alpaca.yaml` (next task)
-- [ ] Created `.env.example` (next task)
+#### 2026-02-01 (Updated)
+**Setup Complete**:
+- [x] Created `.env` with Alpaca credentials
+- [x] Created `config/alpaca.yaml`
+- [x] Created `.env.example`
+- [x] Updated `requirements.txt` (added alpaca-py, APScheduler, dotenv, rich, pytz)
+- [x] Created `scripts/verify_alpaca.py` (API verification tool)
+- [x] Verified Alpaca Paper Trading API connection (✅ Success)
+- [x] Created `docs/PHASE2_PLAN.md` (implementation plan)
+- [x] Created `docs/PHASE2_QUICKSTART.md` (quick start guide)
+- [x] Created git worktree for multi-agent development:
+  - `/home/ubuntu/ai-trader_agent_a/` → Branch: `agent-a/scheduler`
+  - `/home/ubuntu/ai-trader_agent_b/` → Branch: `agent-b/monitering`
 
-**Agent A**:
-- [ ] Waiting for config setup to complete
+**Agent A - Next Tasks**:
+- [ ] Implement AlpacaProvider
+- [ ] Implement AlpacaExecutor
+- [ ] Write unit tests
+
+**Agent B - Next Tasks**:
+- [ ] Update config loader to read Alpaca config
+- [ ] Create config loader tests
+- [ ] Start DynamicRiskManager implementation
 
 **Blockers**: None
+
+#### 2026-01-31
+**Initial Setup**:
+- [x] User created `.env` with Alpaca credentials
+- [x] Phase 2 planning initiated
 
 ---
 
 ## Notes and Decisions
+
+### 2026-02-01: Git Worktree for Multi-Agent Development
+**Decision**: Use git worktree to create isolated workspaces for Agent A and Agent B
+
+**Implementation**:
+```
+/workspaces/ai-trader           → main (coordination workspace)
+/home/ubuntu/ai-trader_agent_a  → agent-a/scheduler (Agent A workspace)
+/home/ubuntu/ai-trader_agent_b  → agent-b/monitering (Agent B workspace)
+```
+
+**Rationale**:
+- **Zero Conflicts**: Each agent has completely isolated working directory
+- **Same Repository**: All worktrees share `.git` - instant synchronization
+- **Parallel Development**: Agents can work simultaneously without interference
+- **Simple Integration**: Merge to `phase2/dev` when modules are ready
+
+**Alternative Considered**: Separate clones (rejected - would require manual sync)
 
 ### 2026-01-31: Phase 2 Kickoff
 **Decision**: Use Daily Rebalancing + Intraday Risk Monitoring (no active intraday trading)
