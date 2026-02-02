@@ -1,0 +1,115 @@
+# Paper Trading Validation Configuration
+# Duration: Feb 2 - Feb 15, 2026 (2 weeks)
+
+paper_trading:
+  start_date: "2026-02-02"
+  duration_days: 14
+
+  # Stock universe - Tech giants for validation
+  universe:
+    - AAPL   # Apple
+    - MSFT   # Microsoft
+    - GOOGL  # Alphabet (Google)
+    - AMZN   # Amazon
+    - NVDA   # NVIDIA
+    - META   # Meta (Facebook)
+    - TSLA   # Tesla
+
+# Multi-Strategy Ensemble Configuration
+strategies:
+  # Strategy 1: Moving Average Crossover (Trend Following)
+  ma_crossover:
+    enabled: true
+    weight: 1.0
+    params:
+      fast_period: 20
+      slow_period: 50
+      min_required_rows: 60
+
+  # Strategy 2: RSI (Mean Reversion)
+  rsi:
+    enabled: true
+    weight: 1.0
+    params:
+      rsi_period: 14
+      oversold_threshold: 30
+      overbought_threshold: 70
+      min_required_rows: 30
+
+  # Strategy 3: MACD (Momentum/Trend Confirmation)
+  macd:
+    enabled: true
+    weight: 1.0
+    params:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+      min_required_rows: 50
+
+  # Strategy 4: Bollinger Bands (Mean Reversion) - DISABLED for initial validation
+  bollinger_bands:
+    enabled: false
+    weight: 1.0
+    params:
+      period: 20
+      num_std: 2.0
+      min_required_rows: 30
+
+# Portfolio Configuration
+portfolio:
+  initial_capital: 100000.0  # $100k starting capital
+  max_positions: 7           # Max number of positions (one per stock)
+  max_position_size: 0.20    # 20% max per position
+  cash_buffer: 0.05          # 5% minimum cash reserve
+  min_signal_threshold: 0.3  # Only act on signals > 0.3 strength
+  min_trade_value: 100.0     # Minimum $100 per trade
+
+# Risk Management Configuration (Moderate Profile)
+risk:
+  # Position-level risk
+  stop_loss_pct: 0.03        # 3% stop-loss per position
+  take_profit_pct: 0.10      # 10% take-profit per position
+  trailing_stop_pct: null    # Optional trailing stop (disabled)
+
+  # Portfolio-level risk
+  daily_loss_limit: 0.02     # 2% max daily loss (circuit breaker)
+  max_drawdown: 0.05         # 5% max drawdown from peak (circuit breaker)
+  max_total_exposure: 0.95   # 95% max invested
+
+  # Order validation
+  max_order_value: 25000.0   # Max $25k per order
+
+# Data Configuration
+data:
+  provider: yfinance          # Use yfinance for historical data (Alpaca free tier limitation)
+  lookback_days: 365          # Fetch 1 year of history for indicators
+  cache_enabled: true         # Cache data to reduce API calls
+
+# Execution Configuration
+execution:
+  broker: alpaca              # Alpaca Paper Trading
+  order_type: market          # Market orders for simplicity
+  time_in_force: day          # Day orders
+  dry_run: false              # Set to true for testing without real orders
+
+# Monitoring & Reporting
+monitoring:
+  enabled: true
+  check_interval_minutes: 5   # Check positions every 5 minutes during market hours
+
+  # Performance tracking
+  track_daily_metrics: true
+  export_trades_log: true
+  export_daily_metrics: true
+
+  # Output directories
+  output_dir: "data/paper_trading"
+  trades_log_file: "trade_log.csv"
+  daily_metrics_file: "daily_metrics.csv"
+
+# Logging Configuration
+logging:
+  level: INFO                 # INFO, DEBUG, WARNING, ERROR
+  log_to_file: true
+  log_file: "logs/paper_trading.log"
+  log_signals: true           # Log individual strategy signals for analysis
