@@ -432,20 +432,36 @@ class DailyWorkflow:
     def _generate_signals(self, data: Dict[str, any]) -> Dict[str, float]:
         """Generate trading signals for all symbols.
 
+        Supports both single Strategy and MultiStrategyEnsemble.
+
         Args:
             data: Dict mapping symbol to price data
 
         Returns:
-            Dict mapping symbol to signal strength
+            Dict mapping symbol to signal strength [-1.0, 1.0]
         """
-        signals = {}
-        for symbol, df in data.items():
-            try:
-                signal = self.strategy.generate_signal(symbol, df)
-                signals[symbol] = signal
-            except Exception as e:
-                logger.warning("Failed to generate signal for %s: %s", symbol, e)
-                signals[symbol] = 0.0
+        from src.strategy.ensemble import MultiStrategyEnsemble
+
+        # Check if strategy is an ensemble
+        if isinstance(self.strategy, MultiStrategyEnsemble):
+            # Use ensemble's batch signal generation
+            signals = self.strategy.get_signals_for_all(self.config.symbols, data)
+        else:
+            # Single strategy - generate signals and extract latest
+            signals = {}
+            for symbol, df in data.items():
+                try:
+                    # Generate full time series
+                    signal_series = self.strategy.generate_signals(df)
+                    # Extract latest signal
+                    if not signal_series.empty:
+                        signals[symbol] = float(signal_series.iloc[-1])
+                    else:
+                        logger.warning("Empty signals for %s, using 0.0", symbol)
+                        signals[symbol] = 0.0
+                except Exception as e:
+                    logger.warning("Failed to generate signal for %s: %s", symbol, e)
+                    signals[symbol] = 0.0
 
         return signals
 

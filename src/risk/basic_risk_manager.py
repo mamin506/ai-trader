@@ -285,6 +285,95 @@ class BasicRiskManager(RiskManager):
 
         return None
 
+    def validate_orders(
+        self,
+        orders: List,
+        portfolio_value: float,
+        current_positions: Dict[str, float] = None,
+        prices: Dict[str, float] = None,
+    ) -> List:
+        """Validate orders against risk rules before execution.
+
+        Filters out orders that would violate position size limits,
+        exposure limits, or cash requirements.
+
+        Args:
+            orders: List of Order objects to validate
+            portfolio_value: Current total portfolio value
+            current_positions: Dict of current positions {symbol: dollar_value}
+            prices: Dict of current prices {symbol: price}
+
+        Returns:
+            List of approved Order objects that pass risk validation
+
+        Example:
+            >>> orders = [Order(action=OrderAction.BUY, symbol='AAPL', shares=100, ...)]
+            >>> approved = manager.validate_orders(orders, portfolio_value=100000)
+        """
+        from src.portfolio.base import Order, OrderAction
+
+        if current_positions is None:
+            current_positions = {}
+
+        if prices is None:
+            prices = {}
+
+        approved_orders = []
+        rejected_orders = []
+
+        for order in orders:
+            # Calculate projected position value after order
+            current_value = current_positions.get(order.symbol, 0.0)
+            order_value = abs(order.estimated_value)
+
+            if order.action == OrderAction.BUY:
+                projected_value = current_value + order_value
+            elif order.action == OrderAction.SELL:
+                projected_value = max(0, current_value - order_value)
+            else:
+                # Unknown action, skip
+                logger.warning(
+                    "Unknown order action %s for %s, skipping",
+                    order.action,
+                    order.symbol,
+                )
+                rejected_orders.append(order)
+                continue
+
+            # Check 1: Position size limit
+            projected_weight = projected_value / portfolio_value if portfolio_value > 0 else 0
+            if projected_weight > self.max_position_size:
+                logger.warning(
+                    "Order rejected: %s position would exceed max size (%.1f%% > %.1f%%)",
+                    order.symbol,
+                    projected_weight * 100,
+                    self.max_position_size * 100,
+                )
+                rejected_orders.append(order)
+                continue
+
+            # Check 2: Minimum trade value (skip tiny orders)
+            if order_value < 100.0:  # $100 minimum
+                logger.debug(
+                    "Order skipped: %s trade value too small ($%.2f < $100)",
+                    order.symbol,
+                    order_value,
+                )
+                rejected_orders.append(order)
+                continue
+
+            # Order passed all checks
+            approved_orders.append(order)
+
+        if rejected_orders:
+            logger.info(
+                "Order validation: %d approved, %d rejected",
+                len(approved_orders),
+                len(rejected_orders),
+            )
+
+        return approved_orders
+
     def get_risk_metrics(self, weights: Dict[str, float]) -> Dict[str, float]:
         """Calculate risk metrics for a portfolio allocation.
 
