@@ -331,6 +331,33 @@ class DynamicRiskManager(RiskManager):
                     shares=position.shares,
                 )
 
+    def validate_orders(
+        self,
+        orders: List,
+        portfolio_value: float,
+        current_positions: Dict[str, float] = None,
+        prices: Dict[str, float] = None,
+    ) -> List:
+        """Validate orders against risk rules before execution.
+
+        Delegates to BasicRiskManager for validation logic.
+
+        Args:
+            orders: List of Order objects to validate
+            portfolio_value: Current total portfolio value
+            current_positions: Dict of current positions {symbol: dollar_value}
+            prices: Dict of current prices {symbol: price}
+
+        Returns:
+            List of approved Order objects that pass risk validation
+        """
+        return self._basic_manager.validate_orders(
+            orders=orders,
+            portfolio_value=portfolio_value,
+            current_positions=current_positions,
+            prices=prices,
+        )
+
     def get_summary(self) -> Dict:
         """Get comprehensive risk summary.
 

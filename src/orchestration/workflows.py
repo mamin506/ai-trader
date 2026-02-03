@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from src.data.providers.alpaca_provider import AlpacaProvider
+from src.data.providers.yfinance_provider import YFinanceProvider
 from src.execution.alpaca_executor import AlpacaExecutor
 from src.portfolio.base import Order, PortfolioState
 from src.portfolio.heuristic_allocator import HeuristicAllocator
@@ -81,7 +82,8 @@ class DailyWorkflow:
         self.config = config
 
         # Initialize components
-        self.data_provider = AlpacaProvider(alpaca_client)
+        # Use YFinanceProvider for historical data (Alpaca free tier limitation)
+        self.data_provider = YFinanceProvider()
         self.executor = AlpacaExecutor(alpaca_client)
         self.portfolio_manager = HeuristicAllocator(
             {
@@ -408,6 +410,8 @@ class DailyWorkflow:
     def _fetch_latest_data(self) -> Dict[str, any]:
         """Fetch latest market data for all symbols.
 
+        Uses batch fetching from YFinanceProvider for efficiency.
+
         Returns:
             Dict mapping symbol to latest data
 
@@ -419,33 +423,61 @@ class DailyWorkflow:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365)  # 1 year of data for indicators
 
-        latest_data = {}
-        for symbol in self.config.symbols:
-            try:
-                df = self.data_provider.get_historical_bars(symbol, start_date, end_date)
-                latest_data[symbol] = df
-            except Exception as e:
-                logger.warning("Failed to fetch data for %s: %s", symbol, e)
+        try:
+            # Use batch fetching for efficiency
+            latest_data = self.data_provider.get_historical_bars_batch(
+                symbols=self.config.symbols,
+                start_date=start_date,
+                end_date=end_date
+            )
+            logger.info("Fetched data for %d symbols", len(latest_data))
+            return latest_data
+        except Exception as e:
+            logger.error("Failed to fetch batch data: %s", e)
+            # Fallback to individual fetching
+            latest_data = {}
+            for symbol in self.config.symbols:
+                try:
+                    df = self.data_provider.get_historical_bars(symbol, start_date, end_date)
+                    latest_data[symbol] = df
+                except Exception as ex:
+                    logger.warning("Failed to fetch data for %s: %s", symbol, ex)
 
-        return latest_data
+            return latest_data
 
     def _generate_signals(self, data: Dict[str, any]) -> Dict[str, float]:
         """Generate trading signals for all symbols.
+
+        Supports both single Strategy and MultiStrategyEnsemble.
 
         Args:
             data: Dict mapping symbol to price data
 
         Returns:
-            Dict mapping symbol to signal strength
+            Dict mapping symbol to signal strength [-1.0, 1.0]
         """
-        signals = {}
-        for symbol, df in data.items():
-            try:
-                signal = self.strategy.generate_signal(symbol, df)
-                signals[symbol] = signal
-            except Exception as e:
-                logger.warning("Failed to generate signal for %s: %s", symbol, e)
-                signals[symbol] = 0.0
+        from src.strategy.ensemble import MultiStrategyEnsemble
+
+        # Check if strategy is an ensemble
+        if isinstance(self.strategy, MultiStrategyEnsemble):
+            # Use ensemble's batch signal generation
+            signals = self.strategy.get_signals_for_all(self.config.symbols, data)
+        else:
+            # Single strategy - generate signals and extract latest
+            signals = {}
+            for symbol, df in data.items():
+                try:
+                    # Generate full time series
+                    signal_series = self.strategy.generate_signals(df)
+                    # Extract latest signal
+                    if not signal_series.empty:
+                        signals[symbol] = float(signal_series.iloc[-1])
+                    else:
+                        logger.warning("Empty signals for %s, using 0.0", symbol)
+                        signals[symbol] = 0.0
+                except Exception as e:
+                    logger.warning("Failed to generate signal for %s: %s", symbol, e)
+                    signals[symbol] = 0.0
 
         return signals
 
